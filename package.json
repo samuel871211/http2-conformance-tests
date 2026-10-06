@@ -1,0 +1,25 @@
+{
+  "name": "http2-conformance-tests",
+  "version": "1.0.0",
+  "lint-staged": {
+    "*.{html,ts,js,md}": [
+      "prettier --write"
+    ]
+  },
+  "type": "module",
+  "scripts": {
+    "prepare": "husky",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": "24.21.0"
+  }
+}
