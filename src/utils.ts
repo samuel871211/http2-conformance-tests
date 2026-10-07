@@ -856,7 +856,6 @@ function encodeStringLiteralsRFC7541(params: {
     if (codePoint > 255) throw new Error("invalid string");
     stringBits += HUFFMAN_CODE[codePoint];
   }
-  console.log("stringBits.length", stringBits.length);
   if (customPaddingBits) {
     assert((stringBits.length + customPaddingBits.length) % 8 === 0);
     stringBits += customPaddingBits;
