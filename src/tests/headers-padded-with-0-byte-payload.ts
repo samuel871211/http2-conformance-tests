@@ -61,7 +61,10 @@ const maybeGoawayFrame = await onceData(socket);
 const goawayFrameNgHttp2 = getGoawayFrame({
   lastStreamID: 0,
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
-  additionalDebugData: Buffer.from("HEADERS: insufficient padding space"),
+  additionalDebugData: Buffer.from(
+    "HEADERS: insufficient padding space",
+    "utf8",
+  ),
 });
 const goawayFrame2 = getGoawayFrame({
   lastStreamID: 0,
