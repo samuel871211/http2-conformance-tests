@@ -1,8 +1,14 @@
-import { http2ConnectionPreface } from "../utils.js";
-import http2, { type ServerHttp2Session } from "http2";
+import {
+  ERROR_CODES,
+  getGoawayFrame,
+  http2ConnectionPreface,
+  onceData,
+} from "../utils.js";
+import http2 from "http2";
 import net from "net";
 import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
+import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
 
@@ -19,25 +25,9 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.on("session", (serverHttp2Session) => {
-  serverHttp2Session.on(
-    "goaway",
-    (errorCode: number, lastStreamID: number, opaqueData?: Buffer) => {
-      console.log({ errorCode, lastStreamID, opaqueData });
-      // { errorCode: 0, lastStreamID: 0, opaqueData: undefined }
-      console.log(`${fileName}: ok`);
-      process.exit(0);
-    },
-  );
-});
-http2Server.on("sessionError", (err: Error, session: ServerHttp2Session) => {
-  // no trigger
-  console.log(err);
-  console.log(session);
-});
 http2Server.listen(serverOption.port);
 // prettier-ignore
-const goawayFrame = Buffer.from([
+const invalidGoawayFrame = Buffer.from([
   0x00, 0x00, 0x08,       // Length
   0x07,                   // Type
   0xFF,                   // Flags
@@ -48,6 +38,27 @@ const goawayFrame = Buffer.from([
 const socket = net.connect({
   host: serverOption.host,
   port: serverOption.port,
+  allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
-socket.write(goawayFrame);
+socket.write(invalidGoawayFrame);
+// 確保不符合規範的 server 可以正確被偵測
+socket.setTimeout(5000, () => {
+  console.log(`${fileName}: server does not close the TCP connection`);
+  process.exit(1);
+});
+const maybeGoawayFrame = await onceData(socket);
+const goawayFrame = getGoawayFrame({
+  lastStreamID: 0,
+  errorCode: ERROR_CODES.NO_ERROR,
+});
+// 不知道為何 Node.js 會送兩個 goaway frame
+const goawayFrameNodejs = Buffer.concat([goawayFrame, goawayFrame]);
+assert(
+  maybeGoawayFrame.equals(goawayFrameNodejs) ||
+    maybeGoawayFrame.equals(goawayFrame),
+);
+socket.on("close", () => {
+  console.log(`${fileName}: ok`);
+  process.exit(0);
+});

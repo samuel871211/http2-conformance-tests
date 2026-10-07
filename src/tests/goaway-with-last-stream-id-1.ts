@@ -2,11 +2,13 @@ import {
   ERROR_CODES,
   getGoawayFrame,
   http2ConnectionPreface,
+  onceData,
 } from "../utils.js";
-import http2, { type ServerHttp2Session } from "http2";
+import http2 from "http2";
 import net from "net";
 import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
+import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
 
@@ -24,37 +26,34 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.on("session", (serverHttp2Session) => {
-  // no trigger
-  serverHttp2Session.on("goaway", console.log);
-});
-http2Server.on("sessionError", (err: Error, session: ServerHttp2Session) => {
-  console.log(err);
-  // Error [ERR_HTTP2_ERROR]: Protocol error
-  //     at Http2Session.onSessionInternalError (node:internal/http2/core:868:26) {
-  //   code: 'ERR_HTTP2_ERROR',
-  //   errno: -505
-  // }
-  console.log(session);
-  // Http2Session {
-  //   type: 0,
-  //   closed: false,
-  //   destroyed: true,
-  //   state: {},
-  //   localSettings: {},
-  //   remoteSettings: {}
-  // }
-  console.log(`${fileName}: ok`);
-  process.exit(0);
-});
 http2Server.listen(serverOption.port);
-const goawayFrame = getGoawayFrame({
+const goawayFrame1 = getGoawayFrame({
   lastStreamID: 1,
   errorCode: ERROR_CODES.NO_ERROR,
 });
 const socket = net.connect({
   host: serverOption.host,
   port: serverOption.port,
+  allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
-socket.write(goawayFrame);
+socket.write(goawayFrame1);
+const maybeGoawayFrame = await onceData(socket);
+const goawayFrame2 = getGoawayFrame({
+  lastStreamID: 0,
+  errorCode: ERROR_CODES.PROTOCOL_ERROR,
+  additionalDebugData: Buffer.from("GOAWAY: invalid last_stream_id", "utf8"),
+});
+const goawayFrameNghttp2 = getGoawayFrame({
+  lastStreamID: 0,
+  errorCode: ERROR_CODES.PROTOCOL_ERROR,
+  additionalDebugData: Buffer.from("GOAWAY: invalid last_stream_id", "utf8"),
+});
+assert(
+  maybeGoawayFrame.equals(goawayFrameNghttp2) ||
+    maybeGoawayFrame.equals(goawayFrame2),
+);
+socket.on("close", () => {
+  console.log(`${fileName}: ok`);
+  process.exit(0);
+});
