@@ -56,7 +56,7 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 4 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
-    // Literal Header Field without Indexing { name: ":authority", value: "localhost:5000" }
+    // Literal Header Field without Indexing { name: ":authority", value: `${serverOption.host}:${serverOption.port}` }
     encodeIntegerRFC7541({ prefix: "0000", integer: 1 }),
     encodeStringLiteralsRFC7541({
       string: `${serverOption.host}:${serverOption.port}`,

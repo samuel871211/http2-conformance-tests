@@ -48,7 +48,7 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
       huffman: true,
-      string: "localhost:5000", // 76 bits of Huffman Code
+      string: "localhost:8080", // 76 bits of Huffman Code
       // 多加 8 bits of padding (1)
       additionalBytes: Buffer.from([parseInt("11111111", 2)]),
     }),

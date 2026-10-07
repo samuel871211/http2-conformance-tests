@@ -53,7 +53,9 @@ const headersFrame1 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({ string: "localhost:8080" }),
+    encodeStringLiteralsRFC7541({
+      string: `${serverOption.host}:${serverOption.port}`,
+    }),
 
     // 先塞滿 62, 63
     encodeIntegerRFC7541({ prefix: "01", integer: 0 }),
@@ -84,7 +86,9 @@ const headersFrame2 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({ string: "localhost:8080" }),
+    encodeStringLiteralsRFC7541({
+      string: `${serverOption.host}:${serverOption.port}`,
+    }),
 
     // 接著引用 63
     encodeIntegerRFC7541({ prefix: "1", integer: 63 }),

@@ -49,7 +49,9 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({ string: "localhost:8080" }),
+    encodeStringLiteralsRFC7541({
+      string: `${serverOption.host}:${serverOption.port}`,
+    }),
 
     // dynamic-table-size-update-not-present-in-first
     encodeIntegerRFC7541({ prefix: "001", integer: 32 }),
