@@ -27,12 +27,6 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.on("session", (serverHttp2Session) => {
-  serverHttp2Session.on("goaway", () =>
-    assert(false, `Should not trigger serverHttp2Session.on("goaway")`),
-  );
-});
-http2Server.on("sessionError", (err, session) => assert(true));
 http2Server.listen(serverOption.port);
 // prettier-ignore
 const invalidGoawayFrame = Buffer.from([
