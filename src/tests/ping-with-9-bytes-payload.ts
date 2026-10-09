@@ -46,7 +46,7 @@ const socket = net.connect({
 });
 await http2ConnectionPreface(socket);
 // prettier-ignore
-const pingFrameWith9BytesPayload = Buffer.from([
+const invalidPingFrame = Buffer.from([
   0x00, 0x00, 0x09,       // Length
   0x06,                   // Type
   0x00,                   // Flags
@@ -55,7 +55,7 @@ const pingFrameWith9BytesPayload = Buffer.from([
   0x00, 0x00, 0x00, 0x00, // Payload
   0x00,                   // Payload
 ]);
-socket.write(pingFrameWith9BytesPayload);
+socket.write(invalidPingFrame);
 // 確保不符合規範的 server 可以正確被偵測
 socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);

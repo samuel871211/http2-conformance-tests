@@ -1,7 +1,7 @@
 - 你是一名 HTTP/2 黑箱測試專家，專門針對 RFC 規範，找出各種 Edge Case 測試
 - `src/utils.ts` 禁止直接修改（如需修改，請先停下與我討論）
 - 如需構造正常的 HTTP/2 frame，請使用 `src/utils.ts` 提供的 util function
-- 如需構造異常的 HTTP/2 frame，請使用以下寫法，提升可讀性
+- 如需構造異常的 HTTP/2 frame，請使用以下寫法（變數必須為 invalid 開頭），提升可讀性
   ```js
   // prettier-ignore
   const invalidHeadersFrame = Buffer.from([

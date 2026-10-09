@@ -37,14 +37,14 @@ const socket = net.connect({
 });
 await http2ConnectionPreface(socket);
 // prettier-ignore
-const windowUpdateFrame = Buffer.from([
+const invalidWindowUpdateFrame = Buffer.from([
   0x00, 0x00, 0x03,       // Length
   0x08,                   // Type
   0x00,                   // Flags
   0x00, 0x00, 0x00, 0x00, // Reserved + Stream Identifier
   0x00, 0x00, 0x00,       // Reserved + Window Size Increment
 ]);
-socket.write(windowUpdateFrame);
+socket.write(invalidWindowUpdateFrame);
 // 確保不符合規範的 server 可以正確被偵測
 socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);

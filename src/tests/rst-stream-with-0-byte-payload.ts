@@ -56,13 +56,13 @@ const headersFrame = getHeadersFrame({
 });
 await writeAsync(socket, headersFrame);
 // prettier-ignore
-const rstFrame = Buffer.from([
+const invalidRstStreamFrame = Buffer.from([
   0x00, 0x00, 0x00,       // Length
   0x03,                   // Type
   0x00,                   // Flags
   0x00, 0x00, 0x00, 0x01, // Reserved + Stream Identifier
 ]);
-socket.write(rstFrame);
+socket.write(invalidRstStreamFrame);
 // 確保不符合規範的 server 可以正確被偵測
 socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);

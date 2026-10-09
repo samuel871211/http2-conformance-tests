@@ -46,13 +46,13 @@ const socket = net.connect({
 });
 await http2ConnectionPreface(socket);
 // prettier-ignore
-const headersFrame = Buffer.from([
+const invalidHeadersFrame = Buffer.from([
   0x00, 0x00, 0x00,       // Length
   0x01,                   // Type
   0x08,                   // Flags
   0x00, 0x00, 0x00, 0x01, // Reserved + Stream Identifier
 ]);
-socket.write(headersFrame);
+socket.write(invalidHeadersFrame);
 // 確保不符合規範的 server 可以正確被偵測
 socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
