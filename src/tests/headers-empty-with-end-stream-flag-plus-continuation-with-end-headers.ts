@@ -12,7 +12,7 @@ import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -26,13 +26,15 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
-  assert(flags === 5);
-  console.log(`${fileName}: ok`);
-  process.exit(0);
-});
-http2Server.listen(port);
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
+    assert(flags === 5);
+    console.log(`${fileName}: ok`);
+    process.exit(0);
+  });
+  http2Server.listen(port);
+}
 
 const socket = net.connect({
   host,

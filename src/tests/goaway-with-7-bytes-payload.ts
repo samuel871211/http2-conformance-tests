@@ -11,7 +11,7 @@ import assert from "assert";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -27,8 +27,10 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+}
 // prettier-ignore
 const invalidGoawayFrame = Buffer.from([
   0x00, 0x00, 0x07,       // Length

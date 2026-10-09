@@ -3,7 +3,7 @@ import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   sourceCode: [
@@ -14,25 +14,27 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
-http2Server.on("sessionError", (err: Error, session: ServerHttp2Session) => {
-  console.log(err);
-  // Error [ERR_HTTP2_ERROR]: Flooding was detected in this HTTP/2 session, and it must be closed
-  //     at Http2Session.onSessionInternalError (node:internal/http2/core:874:26) {
-  //   code: 'ERR_HTTP2_ERROR',
-  //   errno: -904
-  // }
-  console.log(session);
-  // Http2Session {
-  //   type: 0,
-  //   closed: false,
-  //   destroyed: true,
-  //   state: {},
-  //   localSettings: {},
-  //   remoteSettings: {}
-  // }
-});
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+  http2Server.on("sessionError", (err: Error, session: ServerHttp2Session) => {
+    console.log(err);
+    // Error [ERR_HTTP2_ERROR]: Flooding was detected in this HTTP/2 session, and it must be closed
+    //     at Http2Session.onSessionInternalError (node:internal/http2/core:874:26) {
+    //   code: 'ERR_HTTP2_ERROR',
+    //   errno: -904
+    // }
+    console.log(session);
+    // Http2Session {
+    //   type: 0,
+    //   closed: false,
+    //   destroyed: true,
+    //   state: {},
+    //   localSettings: {},
+    //   remoteSettings: {}
+    // }
+  });
+}
 
 const clientHttp2Session = http2.connect(`http://${host}:${port}`, {
   maxOutstandingPings: Number.MAX_SAFE_INTEGER,

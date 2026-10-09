@@ -14,7 +14,7 @@ import { onceData } from "../utils.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -30,11 +30,13 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
-http2Server.on("stream", () =>
-  assert(false, `Should not trigger http2Server.on("stream")`),
-);
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+  http2Server.on("stream", () =>
+    assert(false, `Should not trigger http2Server.on("stream")`),
+  );
+}
 const socket = net.connect({
   host,
   port,

@@ -11,7 +11,7 @@ import { serverOption } from "../server-option.js";
 import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -28,13 +28,15 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
-http2Server.on("request", (req, res) => {
-  assert(req.headers.key === "value01, value01, value02, value02");
-  process.exit(0);
-  // todo 其他 sever 要怎判斷正常回應？用 headers frame 嗎？
-});
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+  http2Server.on("request", (req, res) => {
+    assert(req.headers.key === "value01, value01, value02, value02");
+    process.exit(0);
+    // todo 其他 sever 要怎判斷正常回應？用 headers frame 嗎？
+  });
+}
 
 const socket = net.connect({
   host,

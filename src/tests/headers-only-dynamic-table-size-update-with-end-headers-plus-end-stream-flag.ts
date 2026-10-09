@@ -12,7 +12,7 @@ import assert from "assert";
 import { serverOption } from "../server-option.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 const rstFrame = getRSTFrame({
   streamID: 1,
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
@@ -32,8 +32,10 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+}
 
 const socket = net.connect({
   host,

@@ -14,7 +14,7 @@ import { serverOption } from "../server-option.js";
 import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -31,8 +31,10 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+}
 
 const socket = net.connect({
   host,

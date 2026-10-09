@@ -14,7 +14,7 @@ import assert from "assert";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   sourceCode: [
@@ -33,11 +33,13 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
-http2Server.on("request", (req, res) => {
-  console.log(req.headers);
-});
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+  http2Server.on("request", (req, res) => {
+    console.log(req.headers);
+  });
+}
 
 const socket = net.connect({
   host,

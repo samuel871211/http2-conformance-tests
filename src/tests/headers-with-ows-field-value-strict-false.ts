@@ -11,7 +11,7 @@ import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -25,15 +25,17 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer({
-  strictFieldWhitespaceValidation: false,
-});
-http2Server.listen(port);
-http2Server.on("stream", (stream, headers) => {
-  assert(headers.hello === "world ");
-  console.log(`${fileName}: ok`);
-  process.exit(0);
-});
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer({
+    strictFieldWhitespaceValidation: false,
+  });
+  http2Server.listen(port);
+  http2Server.on("stream", (stream, headers) => {
+    assert(headers.hello === "world ");
+    console.log(`${fileName}: ok`);
+    process.exit(0);
+  });
+}
 const socket = net.connect({
   host,
   port,

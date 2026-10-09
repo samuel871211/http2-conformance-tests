@@ -13,21 +13,23 @@ import { writeAsync } from "../utils.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
-http2Server.on("request", (req, res) => {
-  req.on("data", (chunk) => {
-    assert(typeof chunk !== "string" && chunk.equals(Buffer.from([0x00])));
-    console.log(`${fileName}: ok`);
-    process.exit(0);
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+  http2Server.on("request", (req, res) => {
+    req.on("data", (chunk) => {
+      assert(typeof chunk !== "string" && chunk.equals(Buffer.from([0x00])));
+      console.log(`${fileName}: ok`);
+      process.exit(0);
+    });
   });
-});
+}
 
 const socket = net.connect({
   host,

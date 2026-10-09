@@ -13,7 +13,7 @@ import { serverOption } from "../server-option.js";
 import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
-const { host, port } = serverOption;
+const { host, port, enableNodejsHttp2Server } = serverOption;
 
 const config = {
   rfc: [
@@ -28,13 +28,15 @@ const config = {
   ],
 };
 
-const http2Server = http2.createServer();
-http2Server.listen(port);
-http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
-  if (stream.id === 1) assert(headers.key === "val01, val02, val02, val01");
-  stream.respond();
-  stream.end();
-});
+if (enableNodejsHttp2Server) {
+  const http2Server = http2.createServer();
+  http2Server.listen(port);
+  http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
+    if (stream.id === 1) assert(headers.key === "val01, val02, val02, val01");
+    stream.respond();
+    stream.end();
+  });
+}
 
 const socket = net.connect({
   host,
