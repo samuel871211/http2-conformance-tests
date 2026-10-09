@@ -12,6 +12,7 @@ import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -31,11 +32,11 @@ http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
   console.log(`${fileName}: ok`);
   process.exit(0);
 });
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
@@ -55,7 +56,7 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
   ]),
 });

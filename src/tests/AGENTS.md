@@ -30,7 +30,7 @@
 - server 標準起手式
   ```js
   const http2Server = http2.createServer();
-  http2Server.listen(serverOption.port);
+  http2Server.listen(port);
   ```
 - 承上，有需要測試 server 有無觸發對應的 event
   - 寫法可參考：[data-with-0-byte-payload.ts](./data-with-0-byte-payload.ts)
@@ -39,8 +39,8 @@
 
   ```js
   const socket = net.connect({
-    host: serverOption.host,
-    port: serverOption.port,
+    host,
+    port,
     allowHalfOpen: false,
   });
   // your test here...

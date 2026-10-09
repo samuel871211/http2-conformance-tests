@@ -13,6 +13,7 @@ import assert from "assert";
 import { serverOption } from "../server-option.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -28,12 +29,12 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 http2Server.on("request", (req, res) => res.end());
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
@@ -54,7 +55,7 @@ const headersFrame1 = getHeadersFrame({
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
 
     // 先塞滿 62, 63
@@ -87,7 +88,7 @@ const headersFrame2 = getHeadersFrame({
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
 
     // 接著引用 63

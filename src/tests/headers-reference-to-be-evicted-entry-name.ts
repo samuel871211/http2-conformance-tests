@@ -11,6 +11,7 @@ import { serverOption } from "../server-option.js";
 import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -28,7 +29,7 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 http2Server.on("request", (req, res) => {
   assert(req.headers.key === "value01, value01, value02, value02");
   process.exit(0);
@@ -36,8 +37,8 @@ http2Server.on("request", (req, res) => {
 });
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
@@ -52,7 +53,7 @@ const headersFrame1 = getHeadersFrame({
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
 
     // key: value01

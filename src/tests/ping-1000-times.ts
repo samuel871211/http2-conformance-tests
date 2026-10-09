@@ -3,6 +3,7 @@ import { serverOption } from "../server-option.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   sourceCode: [
@@ -14,7 +15,7 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 http2Server.on("sessionError", (err: Error, session: ServerHttp2Session) => {
   console.log(err);
   // Error [ERR_HTTP2_ERROR]: Flooding was detected in this HTTP/2 session, and it must be closed
@@ -33,10 +34,9 @@ http2Server.on("sessionError", (err: Error, session: ServerHttp2Session) => {
   // }
 });
 
-const clientHttp2Session = http2.connect(
-  `http://${serverOption.host}:${serverOption.port}`,
-  { maxOutstandingPings: Number.MAX_SAFE_INTEGER },
-);
+const clientHttp2Session = http2.connect(`http://${host}:${port}`, {
+  maxOutstandingPings: Number.MAX_SAFE_INTEGER,
+});
 clientHttp2Session.on("error", console.log);
 // Error [ERR_HTTP2_SESSION_ERROR]: Session closed with error code 2
 //     at Http2Session.onGoawayData (node:internal/http2/core:760:21) {

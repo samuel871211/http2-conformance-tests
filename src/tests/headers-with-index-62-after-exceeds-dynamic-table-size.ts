@@ -13,6 +13,7 @@ import assert from "assert";
 import { serverOption } from "../server-option.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -35,11 +36,11 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
@@ -56,10 +57,10 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 4 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
-    // Literal Header Field without Indexing { name: ":authority", value: `${serverOption.host}:${serverOption.port}` }
+    // Literal Header Field without Indexing { name: ":authority", value: `${host}:${port}` }
     encodeIntegerRFC7541({ prefix: "0000", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
 
     // Literal Header Field with Incremental Indexing { name: "x-test", value: "a" }

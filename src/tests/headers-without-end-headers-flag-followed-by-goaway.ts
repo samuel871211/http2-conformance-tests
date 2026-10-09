@@ -12,6 +12,7 @@ import assert from "assert";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -27,11 +28,11 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);

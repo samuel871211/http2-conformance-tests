@@ -14,6 +14,7 @@ import assert from "assert";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   sourceCode: [
@@ -33,14 +34,14 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 http2Server.on("request", (req, res) => {
   console.log(req.headers);
 });
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
@@ -52,7 +53,7 @@ const fieldBlockFragment = Buffer.concat([
 
   encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
   encodeStringLiteralsRFC7541({
-    string: `${serverOption.host}:${serverOption.port}`,
+    string: `${host}:${port}`,
   }),
 ]);
 let index = 0;

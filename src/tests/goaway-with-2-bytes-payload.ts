@@ -11,6 +11,7 @@ import assert from "assert";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -27,7 +28,7 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 // prettier-ignore
 const invalidGoawayFrame = Buffer.from([
   0x00, 0x00, 0x02,       // Length
@@ -37,8 +38,8 @@ const invalidGoawayFrame = Buffer.from([
   0x00, 0x00,             // Payload
 ]);
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);

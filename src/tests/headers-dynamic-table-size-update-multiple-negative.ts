@@ -13,6 +13,7 @@ import { serverOption } from "../server-option.js";
 import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -28,7 +29,7 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
   if (stream.id === 1) assert(headers.key === "val01, val02, val02, val01");
   stream.respond();
@@ -36,8 +37,8 @@ http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
 });
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: false,
 });
 await http2ConnectionPreface(socket);
@@ -55,7 +56,7 @@ const headersFrame1 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
 
     // 先把 dynamic table 塞滿
@@ -89,7 +90,7 @@ const headersFrame2 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
-      string: `${serverOption.host}:${serverOption.port}`,
+      string: `${host}:${port}`,
     }),
 
     // 引用看看，確認真的有塞到 (63 已被 evict，所以會噴 goaway)

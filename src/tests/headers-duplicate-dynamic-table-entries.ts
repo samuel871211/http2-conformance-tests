@@ -11,6 +11,7 @@ import {
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
+const { host, port } = serverOption;
 
 const config = {
   rfc: [
@@ -26,15 +27,15 @@ const config = {
 };
 
 const http2Server = http2.createServer();
-http2Server.listen(serverOption.port);
+http2Server.listen(port);
 http2Server.on("request", (req, res) => {
   assert(req.rawHeaders.filter((str) => str === "x-custom-key").length === 4);
   console.log(`${fileName}: ok`);
 });
 
 const socket = net.connect({
-  host: serverOption.host,
-  port: serverOption.port,
+  host,
+  port,
   allowHalfOpen: true,
 });
 await http2ConnectionPreface(socket);
