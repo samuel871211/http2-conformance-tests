@@ -51,9 +51,7 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({
-      string: `${host}:${port}`,
-    }),
+    encodeStringLiteralsRFC7541({ string: `${host}:${port}` }),
 
     // 總共用 7 bytes 來 encode integer，nghttp2 會噴 decoding error
     encodeOverlongIntegerRFC7541({

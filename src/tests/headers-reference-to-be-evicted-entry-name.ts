@@ -52,9 +52,7 @@ const headersFrame1 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({
-      string: `${host}:${port}`,
-    }),
+    encodeStringLiteralsRFC7541({ string: `${host}:${port}` }),
 
     // key: value01
     encodeIntegerRFC7541({ prefix: "01", integer: 0 }),

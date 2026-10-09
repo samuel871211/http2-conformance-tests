@@ -59,9 +59,7 @@ const headersFrame = getHeadersFrame({
 
     // Literal Header Field without Indexing { name: ":authority", value: `${host}:${port}` }
     encodeIntegerRFC7541({ prefix: "0000", integer: 1 }),
-    encodeStringLiteralsRFC7541({
-      string: `${host}:${port}`,
-    }),
+    encodeStringLiteralsRFC7541({ string: `${host}:${port}` }),
 
     // Literal Header Field with Incremental Indexing { name: "x-test", value: "a" }
     encodeIntegerRFC7541({ prefix: "01", integer: 0 }),

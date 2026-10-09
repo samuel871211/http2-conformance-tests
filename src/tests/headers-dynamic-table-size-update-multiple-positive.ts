@@ -59,9 +59,7 @@ const headersFrame1 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 4 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({
-      string: `${host}:${port}`,
-    }),
+    encodeStringLiteralsRFC7541({ string: `${host}:${port}` }),
 
     // 先把 dynamic table 塞滿
     encodeIntegerRFC7541({ prefix: "01", integer: 0 }),
@@ -93,9 +91,7 @@ const headersFrame2 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 4 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
-    encodeStringLiteralsRFC7541({
-      string: `${host}:${port}`,
-    }),
+    encodeStringLiteralsRFC7541({ string: `${host}:${port}` }),
 
     // 引用看看，確認真的有塞到
     encodeIntegerRFC7541({ prefix: "1", integer: 62 }),
