@@ -28,9 +28,6 @@ const config = {
 
 const http2Server = http2.createServer();
 http2Server.listen(serverOption.port);
-http2Server.on("session", (serverHttp2Session: http2.Http2Session) => {
-  serverHttp2Session.on("close", () => console.log("server session close"));
-});
 
 const socket = net.connect({
   host: serverOption.host,
