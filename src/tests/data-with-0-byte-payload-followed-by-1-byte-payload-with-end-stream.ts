@@ -8,8 +8,8 @@ import {
   getHeadersFrame,
   http2ConnectionPreface,
   getDataFrame,
+  onceData,
 } from "../utils.js";
-import { writeAsync } from "../utils.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
@@ -22,13 +22,7 @@ const config = {
 if (enableNodejsHttp2Server) {
   const http2Server = http2.createServer();
   http2Server.listen(port);
-  http2Server.on("request", (req, res) => {
-    req.on("data", (chunk) => {
-      assert(typeof chunk !== "string" && chunk.equals(Buffer.from([0x00])));
-      console.log(`${fileName}: ok`);
-      process.exit(0);
-    });
-  });
+  http2Server.on("request", (req, res) => res.end());
 }
 
 const socket = net.connect({
@@ -41,7 +35,7 @@ const headersFrame = getHeadersFrame({
   streamID: 1,
   flags: 4,
   fieldBlockFragment: Buffer.concat([
-    encodeIntegerRFC7541({ prefix: "1", integer: 2 }),
+    encodeIntegerRFC7541({ prefix: "1", integer: 3 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 4 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 6 }),
 
@@ -59,4 +53,8 @@ const dataFrame1 = getDataFrame({
   flags: 1,
   data: Buffer.alloc(1),
 });
-await writeAsync(socket, Buffer.concat([headersFrame, dataFrame0, dataFrame1]));
+socket.write(Buffer.concat([headersFrame, dataFrame0, dataFrame1]));
+const maybeHeadersFrame = await onceData(socket);
+assert(maybeHeadersFrame[3] === 0x01);
+console.log(`${fileName}: ok`);
+process.exit(0);
