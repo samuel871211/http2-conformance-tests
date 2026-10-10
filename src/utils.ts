@@ -898,7 +898,7 @@ function writeAsync(
 
 function onceData(socket: Socket | TLSSocket) {
   return new Promise<Buffer<ArrayBuffer>>((resolve) =>
-    socket.on("data", resolve),
+    socket.once("data", resolve),
   );
 }
 
