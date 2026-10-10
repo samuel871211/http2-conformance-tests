@@ -455,6 +455,11 @@ async function http2ConnectionPreface(socket: Socket, settingsFrame?: Buffer) {
 
 function getDataFrame(params: {
   streamID: number;
+  /**
+   * PADDED Flag 8
+   *
+   * END_STREAM Flag 1
+   */
   flags: number;
   data: Buffer;
   /**
@@ -572,13 +577,13 @@ function getHeadersFrame(params: {
    *
    * Unused Flag 16
    *
-   * PADDED Flag  8
+   * PADDED Flag 8
    *
-   * END_HEADERS Flag  4
+   * END_HEADERS Flag 4
    *
-   * Unused Flag  2
+   * Unused Flag 2
    *
-   * END_STREAM Flag  1
+   * END_STREAM Flag 1
    */
   flags: number;
   isContinuationFrame?: boolean;
