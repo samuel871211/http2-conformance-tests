@@ -399,38 +399,32 @@ function numberTo4BytesBuffer(num: number) {
   return result;
 }
 
-/**
- * FIXME: 實作 readExactly
- */
-function waitForSettingsFrameAndAckBack(socket: Socket) {
-  return new Promise((resolve, reject) => {
-    socket.once("readable", () => {
-      const frameHeader: Buffer = socket.read(9);
-      const payloadLength = frameHeader.readUintBE(0, 3);
-      const framePayload = socket.read(payloadLength);
-      if (frameHeader[3] === 0x04 && frameHeader[4] === 0x00) {
-        socket.write(settingsACKFrame, () => resolve(true));
-        return;
-      }
-      console.error(frameHeader, framePayload);
-      reject("not SETTINGS frame");
-    });
-  });
+async function waitForSettingsFrameAndAckBack(socket: Socket) {
+  const http2Frame = await readHttp2Frame(socket);
+  // FIXME: Should we check SETTINGS frame payload also ?
+  if (
+    http2Frame.type === Http2FrameTypes.SETTINGS &&
+    http2Frame.flags === 0x00 &&
+    http2Frame.streamID === 0
+  ) {
+    await writeAsync(socket, settingsACKFrame);
+    return true;
+  }
+  throw new Error(JSON.stringify({ reason: "not SETTINGS frame", http2Frame }));
 }
 
-/**
- * FIXME: 實作 readExactly
- */
-function waitForSettingsACKFrame(socket: Socket) {
-  return new Promise((resolve, reject) => {
-    socket.once("readable", () => {
-      const buffer: Buffer = socket.read(9);
-      if (buffer.equals(settingsACKFrame)) {
-        resolve(true);
-      }
-      reject("not settingsACKFrame");
-    });
-  });
+async function waitForSettingsACKFrame(socket: Socket) {
+  const http2Frame = await readHttp2Frame(socket);
+  if (
+    http2Frame.type === Http2FrameTypes.SETTINGS &&
+    http2Frame.flags === 0x01 &&
+    http2Frame.length === 0 &&
+    http2Frame.streamID === 0
+  )
+    return true;
+  throw new Error(
+    JSON.stringify({ reason: "not settingsACKFrame", http2Frame }),
+  );
 }
 
 function waitForLocalSettings(http2Session: Http2Session) {
@@ -896,10 +890,235 @@ function writeAsync(
   return new Promise((resolve) => writable.write(buffer, resolve));
 }
 
+/**
+ * @deprecated use {@link readHttp2Frame} instead
+ */
 function onceData(socket: Socket | TLSSocket) {
   return new Promise<Buffer<ArrayBuffer>>((resolve) =>
     socket.once("data", resolve),
   );
+}
+
+const Http2FrameTypes = {
+  DATA: 0x00,
+  HEADERS: 0x01,
+  PRIORITY: 0x02,
+  RST_STREAM: 0x03,
+  SETTINGS: 0x04,
+  PUSH_PROMISE: 0x05,
+  PING: 0x06,
+  GOAWAY: 0x07,
+  WINDOW_UPDATE: 0x08,
+  CONTINUATION: 0x09,
+  PRIORITY_UPDATE: 0x10,
+  ALTSVC: 0x0a,
+  ORIGIN: 0x0c,
+} as const;
+
+export type Http2Frame = {
+  length: number;
+  type: number;
+  flags: number;
+  streamID: number;
+  payload: Buffer;
+};
+
+/**
+ * 呼叫前，須確保 socket 沒有註冊其他 "readable" 或 "data" event
+ */
+function readHttp2Frame(socket: Socket | TLSSocket) {
+  assert(socket.listenerCount("readable") === 0);
+  assert(socket.readableFlowing === null);
+
+  return new Promise<Http2Frame>((resolve, reject) => {
+    if (socket.readableEnded) {
+      assert(socket.readableLength === 0);
+      reject(new Error(JSON.stringify({ reason: "readableEnded" })));
+      return;
+    }
+    const http2Frame = {} as Http2Frame;
+    if (socket.destroyed) {
+      readFrameHeader();
+      return;
+    }
+    function readFrameHeader() {
+      const maybeFrameHeader = socket.read(9);
+      if (maybeFrameHeader === null) {
+        if (socket.readable) {
+          socket.once("readable", readFrameHeader);
+          return;
+        }
+        cleanup();
+        reject(
+          new Error(
+            JSON.stringify({
+              reason: "socket not readable",
+              data: socket.read(),
+            }),
+          ),
+        );
+        return;
+      }
+      assert(maybeFrameHeader instanceof Buffer);
+      assert(maybeFrameHeader.byteLength <= 9);
+      if (maybeFrameHeader.byteLength === 9) {
+        http2Frame.length = maybeFrameHeader.readUintBE(0, 3);
+        http2Frame.type = maybeFrameHeader[3] as number;
+        http2Frame.flags = maybeFrameHeader[4] as number;
+        http2Frame.streamID = maybeFrameHeader.readUInt32BE(5) & 0x7fffffff;
+        if (http2Frame.length === 0) {
+          http2Frame.payload = Buffer.alloc(0);
+          cleanup();
+          resolve(http2Frame);
+          return;
+        }
+        readFramePayload();
+        return;
+      } else if (maybeFrameHeader.byteLength < 9) {
+        cleanup();
+        reject(
+          new Error(
+            JSON.stringify({
+              reason: "insufficient frame header",
+              maybeFrameHeader,
+            }),
+          ),
+        );
+        return;
+      }
+
+      // else if (maybeFrameHeader.byteLength > 9) {
+      //   http2Frame.length = maybeFrameHeader.readUintBE(0, 3);
+      //   http2Frame.type = maybeFrameHeader[3] as number;
+      //   http2Frame.flags = maybeFrameHeader[4] as number;
+      //   http2Frame.streamID = maybeFrameHeader.readUInt32BE(5) & 0x7fffffff;
+      //   // 多讀到下一個 http2Frame，塞回 internal buffer
+      //   if (http2Frame.length === 0) {
+      //     http2Frame.payload = Buffer.alloc(0);
+      //     cleanup();
+      //     socket.unshift(maybeFrameHeader.subarray(9));
+      //     resolve(http2Frame);
+      //     return;
+      //   }
+      //   // 剛好讀完一個 http2Frame
+      //   if (http2Frame.length === maybeFrameHeader.byteLength - 9) {
+      //     http2Frame.payload = maybeFrameHeader.subarray(9);
+      //     cleanup();
+      //     resolve(http2Frame);
+      //     return;
+      //   }
+      //   // http2Frame payload 沒讀完
+      //   cleanup();
+      //   reject(new Error(JSON.stringify({ reason: "insufficient frame payload", maybeFrameHeader })));
+      //   return;
+      // }
+    }
+    function readFramePayload() {
+      const maybeFramePayload = socket.read(http2Frame.length);
+      if (maybeFramePayload === null) {
+        if (socket.readable) {
+          socket.once("readable", readFramePayload);
+          return;
+        }
+        cleanup();
+        reject(
+          new Error(
+            JSON.stringify({
+              reason: "socket not readable",
+              data: socket.read(),
+            }),
+          ),
+        );
+        return;
+      }
+      assert(maybeFramePayload instanceof Buffer);
+      assert(maybeFramePayload.byteLength <= http2Frame.length);
+      if (maybeFramePayload.byteLength === http2Frame.length) {
+        http2Frame.payload = maybeFramePayload;
+        cleanup();
+        resolve(http2Frame);
+        return;
+      }
+      // else if (maybeFramePayload.byteLength > http2Frame.length) {
+      //   http2Frame.payload = maybeFramePayload.subarray(0, http2Frame.length);
+      //   socket.unshift(maybeFramePayload.subarray(http2Frame.length));
+      //   cleanup();
+      //   resolve(http2Frame);
+      //   return;
+      // }
+      else if (maybeFramePayload.byteLength < http2Frame.length) {
+        cleanup();
+        reject(
+          new Error(
+            JSON.stringify({
+              reason: "insufficient frame payload",
+              maybeFramePayload,
+            }),
+          ),
+        );
+        return;
+      }
+    }
+    function end() {
+      cleanup();
+      reject(new Error(JSON.stringify({ reason: "socket end", http2Frame })));
+    }
+    function close() {
+      cleanup();
+      reject(new Error(JSON.stringify({ reason: "socket close", http2Frame })));
+    }
+    function error(err: Error) {
+      cleanup();
+      reject(err);
+    }
+    function cleanup() {
+      socket.removeListener("readable", readFrameHeader);
+      socket.removeListener("readable", readFramePayload);
+      socket.removeListener("end", end);
+      socket.removeListener("close", close);
+      socket.removeListener("error", error);
+    }
+    socket.once("readable", readFrameHeader);
+    socket.once("end", end);
+    socket.once("close", close);
+    socket.once("error", error);
+  });
+}
+
+async function readHttp2FramesUntil(params: {
+  socket: Socket | TLSSocket;
+  predicate: (http2Frame: Http2Frame, http2Frames: Http2Frame[]) => boolean;
+}) {
+  const { socket, predicate } = params;
+  let http2Frame = await readHttp2Frame(socket);
+  const http2Frames = [http2Frame];
+  while (predicate(http2Frame, http2Frames) === false) {
+    try {
+      http2Frame = await readHttp2Frame(socket);
+      http2Frames.push(http2Frame);
+    } catch (originalError) {
+      const error = new Error("readHttp2FramesUntil: readHttp2Frame rejected", {
+        cause: originalError,
+      });
+      Object.assign(error, { http2Frames });
+      throw error;
+    }
+  }
+  return http2Frames;
+}
+
+function readUntilEndStream(params: {
+  http2Frame: Http2Frame;
+  streamID: number;
+}) {
+  const { http2Frame, streamID } = params;
+  const matchStreamID = http2Frame.streamID === streamID;
+  const matchHeadersFrame =
+    http2Frame.type === Http2FrameTypes.HEADERS &&
+    (http2Frame.flags & 0x01) === 1;
+  const matchDataFrame =
+    http2Frame.type === Http2FrameTypes.DATA && (http2Frame.flags & 0x01) === 1;
+  return matchStreamID && (matchHeadersFrame || matchDataFrame);
 }
 
 function getFileName(importMetaFilename: string) {
@@ -940,4 +1159,8 @@ export {
   writeAsync,
   getFileName,
   onceData,
+  readHttp2Frame,
+  readHttp2FramesUntil,
+  readUntilEndStream,
+  Http2FrameTypes,
 };
