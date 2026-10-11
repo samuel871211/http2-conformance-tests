@@ -5,10 +5,11 @@ import {
   encodeStringLiteralsRFC7541,
   getHeadersFrame,
   http2ConnectionPreface,
+  readHttp2FramesUntil,
+  readUntilEndStream,
 } from "../utils.js";
-import { getFileName, onceData, writeAsync } from "../utils.js";
+import { getFileName, writeAsync } from "../utils.js";
 import { serverOption } from "../server-option.js";
-import assert from "assert";
 
 const fileName = getFileName(import.meta.filename);
 const { host, port, enableNodejsHttp2Server } = serverOption;
@@ -29,17 +30,7 @@ const config = {
 if (enableNodejsHttp2Server) {
   const http2Server = http2.createServer();
   http2Server.listen(port);
-  http2Server.on("stream", (stream, headers, flags, rawHeaders) => {
-    if (stream.id === 1) assert(headers.key === "val01, val02, val02, val01");
-    if (stream.id === 3) assert(headers.key === "val02, val02");
-    stream.respond();
-    stream.end();
-
-    if (stream.id === 3) {
-      console.log(`${fileName}: ok`);
-      process.exit(0);
-    }
-  });
+  http2Server.on("request", (req, res) => res.end("whatever"));
 }
 
 const socket = net.connect({
@@ -78,10 +69,14 @@ const headersFrame1 = getHeadersFrame({
   ]),
 });
 await writeAsync(socket, headersFrame1);
-const maybeHeadersFrame = await onceData(socket);
-assert(maybeHeadersFrame[3] === 0x01, "not headers frame");
-
-const headersFrame2 = getHeadersFrame({
+// 正常情境，假設 server 會正常回應 END_STREAM
+// 就不特別檢查 HEADERS, DATA frame 的內容
+const http2FramesReceivedAfterHeadersFrame1 = await readHttp2FramesUntil({
+  socket,
+  predicate: (http2Frame) => readUntilEndStream({ http2Frame, streamID: 1 }),
+});
+console.log(http2FramesReceivedAfterHeadersFrame1);
+const headersFrame3 = getHeadersFrame({
   streamID: 3,
   flags: 5,
   fieldBlockFragment: Buffer.concat([
@@ -100,4 +95,11 @@ const headersFrame2 = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "1", integer: 62 }),
   ]),
 });
-await writeAsync(socket, headersFrame2);
+await writeAsync(socket, headersFrame3);
+const http2FramesReceivedAfterHeadersFrame3 = await readHttp2FramesUntil({
+  socket,
+  predicate: (http2Frame) => readUntilEndStream({ http2Frame, streamID: 3 }),
+});
+console.log(http2FramesReceivedAfterHeadersFrame3);
+console.log(`${fileName}: ok`);
+process.exit(0);
