@@ -10,7 +10,7 @@ import {
 } from "../utils.js";
 import assert from "assert";
 import { serverOption } from "../server-option.js";
-import { onceData } from "../utils.js";
+import { readHttp2Frame } from "../utils.js";
 import { getFileName } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
@@ -58,11 +58,11 @@ const headersFrame = getHeadersFrame({
   ]),
 });
 socket.write(headersFrame);
-const maybeRSTFrame = await onceData(socket);
+const maybeRSTFrame = await readHttp2Frame(socket);
 const rstFrame = getRSTFrame({
   streamID: 1,
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
 });
-assert(maybeRSTFrame.equals(rstFrame));
+assert(maybeRSTFrame.raw.equals(rstFrame));
 console.log(`${fileName}: ok`);
 process.exit(0);

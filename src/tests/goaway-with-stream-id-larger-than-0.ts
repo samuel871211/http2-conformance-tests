@@ -2,7 +2,7 @@ import {
   ERROR_CODES,
   getGoawayFrame,
   http2ConnectionPreface,
-  onceData,
+  readHttp2Frame,
 } from "../utils.js";
 import http2 from "http2";
 import net from "net";
@@ -52,7 +52,7 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrameNghttp2 = getGoawayFrame({
   lastStreamID: 0,
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
@@ -63,8 +63,8 @@ const goawayFrame = getGoawayFrame({
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
 });
 assert(
-  maybeGoawayFrame.equals(goawayFrameNghttp2) ||
-    maybeGoawayFrame.equals(goawayFrame),
+  maybeGoawayFrame.raw.equals(goawayFrameNghttp2) ||
+    maybeGoawayFrame.raw.equals(goawayFrame),
 );
 socket.on("close", () => {
   console.log(`${fileName}: ok`);

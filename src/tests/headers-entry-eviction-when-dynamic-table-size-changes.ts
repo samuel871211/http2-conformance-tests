@@ -8,7 +8,7 @@ import {
   http2ConnectionPreface,
   ERROR_CODES,
 } from "../utils.js";
-import { getFileName, onceData, writeAsync } from "../utils.js";
+import { getFileName, readHttp2Frame, writeAsync } from "../utils.js";
 import assert from "assert";
 import { serverOption } from "../server-option.js";
 
@@ -72,7 +72,7 @@ const headersFrame1 = getHeadersFrame({
   ]),
 });
 await writeAsync(socket, headersFrame1);
-await onceData(socket);
+await readHttp2Frame(socket);
 const headersFrame2 = getHeadersFrame({
   streamID: 3,
   flags: 5,
@@ -99,13 +99,13 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame = getGoawayFrame({
   lastStreamID: 3,
   errorCode: ERROR_CODES.COMPRESSION_ERROR,
 });
 // 理論上 server 會噴 goaway (compression error)
-assert(maybeGoawayFrame.equals(goawayFrame));
+assert(maybeGoawayFrame.raw.equals(goawayFrame));
 socket.on("close", () => {
   console.log(`${fileName}: ok`);
   process.exit(0);

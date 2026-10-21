@@ -8,7 +8,8 @@ import {
   getHeadersFrame,
   http2ConnectionPreface,
   getDataFrame,
-  onceData,
+  readHttp2Frame,
+  Http2FrameTypes,
 } from "../utils.js";
 import { getFileName } from "../utils.js";
 
@@ -54,7 +55,8 @@ const dataFrame1 = getDataFrame({
   data: Buffer.alloc(1),
 });
 socket.write(Buffer.concat([headersFrame, dataFrame0, dataFrame1]));
-const maybeHeadersFrame = await onceData(socket);
-assert(maybeHeadersFrame[3] === 0x01);
+const maybeHeadersFrame = await readHttp2Frame(socket);
+assert(maybeHeadersFrame.type === Http2FrameTypes.HEADERS);
+assert(maybeHeadersFrame.streamID === 1);
 console.log(`${fileName}: ok`);
 process.exit(0);

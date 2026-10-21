@@ -2,7 +2,7 @@ import {
   ERROR_CODES,
   getGoawayFrame,
   http2ConnectionPreface,
-  onceData,
+  readHttp2Frame,
 } from "../utils.js";
 import http2 from "http2";
 import net from "net";
@@ -41,7 +41,7 @@ const socket = net.connect({
 });
 await http2ConnectionPreface(socket);
 socket.write(goawayFrame1);
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame2 = getGoawayFrame({
   lastStreamID: 0,
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
@@ -53,8 +53,8 @@ const goawayFrameNghttp2 = getGoawayFrame({
   additionalDebugData: Buffer.from("GOAWAY: invalid last_stream_id", "utf8"),
 });
 assert(
-  maybeGoawayFrame.equals(goawayFrameNghttp2) ||
-    maybeGoawayFrame.equals(goawayFrame2),
+  maybeGoawayFrame.raw.equals(goawayFrameNghttp2) ||
+    maybeGoawayFrame.raw.equals(goawayFrame2),
 );
 socket.on("close", () => {
   console.log(`${fileName}: ok`);

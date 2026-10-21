@@ -7,7 +7,7 @@ import {
   http2ConnectionPreface,
 } from "../utils.js";
 import assert from "assert";
-import { getFileName, onceData } from "../utils.js";
+import { getFileName, readHttp2Frame } from "../utils.js";
 import { serverOption } from "../server-option.js";
 
 const fileName = getFileName(import.meta.filename);
@@ -56,7 +56,7 @@ const headersFrame = getHeadersFrame({
   fieldBlockFragment: Buffer.alloc(0),
 });
 socket.write(headersFrame);
-const maybeRSTFrame = await onceData(socket);
-assert(maybeRSTFrame.equals(rstFrame));
+const maybeRSTFrame = await readHttp2Frame(socket);
+assert(maybeRSTFrame.raw.equals(rstFrame));
 console.log(`${fileName}: ok`);
 process.exit(0);
