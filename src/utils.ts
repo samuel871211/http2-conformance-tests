@@ -921,6 +921,10 @@ export type Http2Frame = {
   flags: number;
   streamID: number;
   payload: Buffer;
+  /**
+   * frame Header + frame Payload
+   */
+  raw: Buffer;
 };
 
 /**
@@ -966,6 +970,7 @@ function readHttp2Frame(socket: Socket | TLSSocket) {
         http2Frame.type = maybeFrameHeader[3] as number;
         http2Frame.flags = maybeFrameHeader[4] as number;
         http2Frame.streamID = maybeFrameHeader.readUInt32BE(5) & 0x7fffffff;
+        http2Frame.raw = maybeFrameHeader;
         if (http2Frame.length === 0) {
           http2Frame.payload = Buffer.alloc(0);
           cleanup();
@@ -1035,6 +1040,7 @@ function readHttp2Frame(socket: Socket | TLSSocket) {
       assert(maybeFramePayload.byteLength <= http2Frame.length);
       if (maybeFramePayload.byteLength === http2Frame.length) {
         http2Frame.payload = maybeFramePayload;
+        http2Frame.raw = Buffer.concat([http2Frame.raw, maybeFramePayload]);
         cleanup();
         resolve(http2Frame);
         return;

@@ -195,25 +195,30 @@ describe("readHttp2Frame", () => {
   });
 
   describe("欄位解析", () => {
-    it("length / type / flags / streamID / payload", TEST_TIMEOUT, async () => {
-      const dataFrame = getDataFrame({
-        streamID: 3,
-        flags: 0x01,
-        data: Buffer.from("hi"),
-      });
-      const socket = await connect((s) => s.write(dataFrame));
-      const [frame] = await readFrames(socket, 1);
-      assert.deepEqual(
-        { ...frame },
-        {
-          length: 2,
-          type: 0x00,
-          flags: 0x01,
+    it(
+      "length / type / flags / streamID / payload / raw",
+      TEST_TIMEOUT,
+      async () => {
+        const dataFrame = getDataFrame({
           streamID: 3,
-          payload: Buffer.from("hi"),
-        },
-      );
-    });
+          flags: 0x01,
+          data: Buffer.from("hi"),
+        });
+        const socket = await connect((s) => s.write(dataFrame));
+        const [frame] = await readFrames(socket, 1);
+        assert.deepEqual(
+          { ...frame },
+          {
+            length: 2,
+            type: 0x00,
+            flags: 0x01,
+            streamID: 3,
+            payload: Buffer.from("hi"),
+            raw: dataFrame,
+          },
+        );
+      },
+    );
 
     it("streamID 的 Reserved bit 會被清掉", TEST_TIMEOUT, async () => {
       // prettier-ignore
@@ -227,6 +232,85 @@ describe("readHttp2Frame", () => {
       const [frame] = await readFrames(socket, 1);
       assert.equal(frame!.streamID, 5);
     });
+  });
+
+  describe("raw", () => {
+    it("等於 frame header + frame payload", TEST_TIMEOUT, async () => {
+      const socket = await connect((s) => s.write(goawayFrame));
+      const [frame] = await readFrames(socket, 1);
+      assert.deepEqual(frame!.raw, goawayFrame);
+      assert.deepEqual(
+        frame!.raw,
+        Buffer.concat([frame!.raw.subarray(0, 9), frame!.payload]),
+      );
+    });
+
+    it("0-byte payload 的 frame 只有 header", TEST_TIMEOUT, async () => {
+      const socket = await connect((s) => s.write(emptySettingsFrame));
+      const [frame] = await readFrames(socket, 1);
+      assert.equal(frame!.raw.byteLength, 9);
+      assert.deepEqual(frame!.raw, emptySettingsFrame);
+    });
+
+    it("保留 streamID 的 Reserved bit", TEST_TIMEOUT, async () => {
+      // prettier-ignore
+      const frameWithReservedBit = Buffer.from([
+        0x00, 0x00, 0x00,       // Length
+        0x06,                   // Type
+        0x00,                   // Flags
+        0x80, 0x00, 0x00, 0x05, // Reserved bit = 1 + Stream Identifier = 5
+      ]);
+      const socket = await connect((s) => s.write(frameWithReservedBit));
+      const [frame] = await readFrames(socket, 1);
+      assert.equal(frame!.streamID, 5);
+      assert.deepEqual(frame!.raw, frameWithReservedBit);
+    });
+
+    it(
+      "三個 frame 黏在同一個 chunk，各自的 raw 互不影響",
+      TEST_TIMEOUT,
+      async () => {
+        const socket = await connect((s) =>
+          s.write(Buffer.concat([goawayFrame, pingFrame, emptySettingsFrame])),
+        );
+        const frames = await readFrames(socket, 3);
+        assert.deepEqual(
+          frames.map((f) => f.raw),
+          [goawayFrame, pingFrame, emptySettingsFrame],
+        );
+      },
+    );
+
+    it("header 與 payload 分開送", TEST_TIMEOUT, async () => {
+      const socket = await connect(async (s) => {
+        s.write(goawayFrame.subarray(0, 9));
+        await sleep(50);
+        s.write(goawayFrame.subarray(9));
+      });
+      const [frame] = await readFrames(socket, 1);
+      assert.deepEqual(frame!.raw, goawayFrame);
+    });
+
+    it(
+      "大 payload（16384 bytes）被切成多個小 chunk",
+      TEST_TIMEOUT,
+      async () => {
+        const dataFrame = getDataFrame({
+          streamID: 1,
+          flags: 0,
+          data: Buffer.alloc(16384, 0xab),
+        });
+        const socket = await connect(async (s) => {
+          for (let i = 0; i < dataFrame.byteLength; i += 1000) {
+            s.write(dataFrame.subarray(i, i + 1000));
+            await sleep(1);
+          }
+        });
+        const [frame] = await readFrames(socket, 1);
+        assert.equal(frame!.raw.byteLength, 9 + 16384);
+        assert.deepEqual(frame!.raw, dataFrame);
+      },
+    );
   });
 
   describe("對端結束連線", () => {
