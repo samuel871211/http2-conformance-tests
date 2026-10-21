@@ -5,7 +5,7 @@ import {
   getGoawayFrame,
   http2ConnectionPreface,
 } from "../utils.js";
-import { onceData } from "../utils.js";
+import { readHttp2Frame } from "../utils.js";
 import { serverOption } from "../server-option.js";
 import assert from "assert";
 import { getFileName } from "../utils.js";
@@ -52,12 +52,12 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame = getGoawayFrame({
   lastStreamID: 0,
   errorCode: ERROR_CODES.FRAME_SIZE_ERROR,
 });
-assert(maybeGoawayFrame.equals(goawayFrame));
+assert(maybeGoawayFrame.raw.equals(goawayFrame));
 socket.on("close", () => {
   console.log(`${fileName}: ok`);
   process.exit(0);
