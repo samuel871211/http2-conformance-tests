@@ -2,7 +2,7 @@ import {
   ERROR_CODES,
   getGoawayFrame,
   http2ConnectionPreface,
-  onceData,
+  readHttp2Frame,
 } from "../utils.js";
 import http2 from "http2";
 import net from "net";
@@ -50,17 +50,17 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame = getGoawayFrame({
   lastStreamID: 0,
   errorCode: ERROR_CODES.NO_ERROR,
 });
+assert(maybeGoawayFrame.raw.equals(goawayFrame));
 // 不知道為何 Node.js 會送兩個 goaway frame
-const goawayFrameNodejs = Buffer.concat([goawayFrame, goawayFrame]);
-assert(
-  maybeGoawayFrame.equals(goawayFrameNodejs) ||
-    maybeGoawayFrame.equals(goawayFrame),
-);
+if (enableNodejsHttp2Server) {
+  const maybeGoawayFrame2 = await readHttp2Frame(socket);
+  assert(maybeGoawayFrame2.raw.equals(goawayFrame));
+}
 socket.on("close", () => {
   console.log(`${fileName}: ok`);
   process.exit(0);

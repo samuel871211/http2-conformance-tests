@@ -7,8 +7,11 @@ import {
   getGoawayFrame,
   getHeadersFrame,
   http2ConnectionPreface,
+  readHttp2Frame,
+  readHttp2FramesUntil,
+  readUntilEndStream,
 } from "../utils.js";
-import { getFileName, onceData, writeAsync } from "../utils.js";
+import { getFileName, writeAsync } from "../utils.js";
 import { serverOption } from "../server-option.js";
 import assert from "assert";
 
@@ -74,8 +77,14 @@ const headersFrame1 = getHeadersFrame({
   ]),
 });
 await writeAsync(socket, headersFrame1);
-const maybeHeadersFrame = await onceData(socket);
-assert(maybeHeadersFrame[3] === 0x01, "not headers frame");
+const http2FramesReceivedAfterHeadersFrame1 = await readHttp2FramesUntil({
+  socket,
+  predicate: (http2Frame) => readUntilEndStream({ http2Frame, streamID: 1 }),
+});
+assert(
+  http2FramesReceivedAfterHeadersFrame1[0]?.type === 0x01,
+  "not headers frame",
+);
 
 const headersFrame2 = getHeadersFrame({
   streamID: 3,
@@ -104,12 +113,12 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame = getGoawayFrame({
   lastStreamID: 3,
   errorCode: ERROR_CODES.COMPRESSION_ERROR,
 });
-assert(maybeGoawayFrame.equals(goawayFrame));
+assert(maybeGoawayFrame.raw.equals(goawayFrame));
 socket.on("close", () => {
   console.log(`${fileName}: ok`);
   process.exit(0);
