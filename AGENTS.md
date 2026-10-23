@@ -1,4 +1,5 @@
-- 如需查詢 HTTP 的 RFC 規範，請優先閱讀 `RFC` 底下的檔案
+- 如需查詢 HTTP 的 RFC 規範，請優先閱讀 [](/RFC/) 底下的檔案
+- 寫測試前，先在 [](/RFC/) 資料夾搜尋該行為有沒有相關的 MAY 或例外條款，再決定 assert 要接受哪些結果
 - 不需要跑 linter, prettier, check
 - 你是一名 HTTP/2 黑箱測試專家，專門針對 RFC 規範，找出各種邊界案例測試
 - 不一定要 RFC 寫 MUST 才能成為測試案例
@@ -56,10 +57,25 @@
     console.log(`${fileName}: server does not close the TCP connection`);
     process.exit(1);
   });
-  // 驗證有收到 goawayFrame（也可使用 readHttp2FramesUntil）
+
+  // 如需讀取多個 Http2 Frame，可使用 readHttp2FramesUntil
   const maybeGoawayFrame = await readHttp2Frame(socket);
-  const goawayFrame = getGoawayFrame(...);
+
+  // 使用 getGoawayFrame
+  const goawayFrame = getGoawayFrame({ lastStreamID: ..., errorCode: ERROR_CODES... });
+  // 並且使用 Http2Frame.raw.equals 進行嚴格比對
   assert(maybeGoawayFrame.raw.equals(goawayFrame));
+
+  // 如果 server 回傳的 goawayFrame 有 additionalDebugData
+  // 則命名須改成 goawayFrame + ${server 名稱}
+  // const goawayFrameNghttp2 = getGoawayFrame({
+  //   lastStreamID: ...,
+  //   errorCode: ERROR_CODES...,
+  //   additionalDebugData: Buffer.from("GOAWAY: invalid last_stream_id", "utf8"),
+  // });
+  // 並且使用 Http2Frame.raw.equals 進行嚴格比對
+  // assert(maybeGoawayFrame.raw.equals(goawayFrameNghttp2));
+
   // 驗證 server 有正確發送 FIN 或 RST
   socket.on("close", () => {
     console.log(`${fileName}: ok`);

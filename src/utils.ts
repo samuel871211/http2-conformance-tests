@@ -920,6 +920,8 @@ export type Http2Frame = {
 
 /**
  * 呼叫前，須確保 socket 沒有註冊其他 "readable" 或 "data" event
+ *
+ * 只讀一個 Http2 Frame 就停止
  */
 function readHttp2Frame(socket: Socket | TLSSocket) {
   assert(socket.listenerCount("readable") === 0);
@@ -1082,6 +1084,9 @@ function readHttp2Frame(socket: Socket | TLSSocket) {
   });
 }
 
+/**
+ * 讀多個 Http2 Frame，直到 predicate 為 true
+ */
 async function readHttp2FramesUntil(params: {
   socket: Socket | TLSSocket;
   predicate: (http2Frame: Http2Frame, http2Frames: Http2Frame[]) => boolean;
