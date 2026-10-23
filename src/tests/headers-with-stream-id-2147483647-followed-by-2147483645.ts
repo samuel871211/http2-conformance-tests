@@ -7,8 +7,11 @@ import {
   getGoawayFrame,
   getHeadersFrame,
   http2ConnectionPreface,
+  readHttp2Frame,
+  readHttp2FramesUntil,
+  readUntilEndStream,
 } from "../utils.js";
-import { getFileName, onceData } from "../utils.js";
+import { getFileName } from "../utils.js";
 import { serverOption } from "../server-option.js";
 import assert from "assert";
 
@@ -35,7 +38,6 @@ if (enableNodejsHttp2Server) {
   const http2Server = http2.createServer();
   http2Server.listen(port);
   http2Server.on("stream", (stream) => {
-    console.log("stream");
     stream.respond();
     stream.end();
   });
@@ -46,9 +48,10 @@ const socket = net.connect({
   port,
   allowHalfOpen: false,
 });
+const streamID = Math.pow(2, 31) - 1;
 await http2ConnectionPreface(socket);
 const headersFrame = getHeadersFrame({
-  streamID: Math.pow(2, 31) - 1,
+  streamID,
   flags: 5,
   fieldBlockFragment: Buffer.concat([
     encodeIntegerRFC7541({ prefix: "1", integer: 2 }),
@@ -60,9 +63,12 @@ const headersFrame = getHeadersFrame({
   ]),
 });
 socket.write(headersFrame);
-await onceData(socket);
+await readHttp2FramesUntil({
+  socket,
+  predicate: (http2Frame) => readUntilEndStream({ http2Frame, streamID }),
+});
 const headersFrame2 = getHeadersFrame({
-  streamID: Math.pow(2, 31) - 3,
+  streamID: streamID - 2,
   flags: 5,
   fieldBlockFragment: Buffer.concat([
     encodeIntegerRFC7541({ prefix: "1", integer: 2 }),
@@ -79,12 +85,12 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame = getGoawayFrame({
-  lastStreamID: Math.pow(2, 31) - 1,
+  lastStreamID: streamID - 2,
   errorCode: ERROR_CODES.PROTOCOL_ERROR,
 });
-assert(maybeGoawayFrame.equals(goawayFrame));
+assert(maybeGoawayFrame.raw.equals(goawayFrame));
 socket.on("close", () => {
   console.log(`${fileName}: ok`);
   process.exit(0);

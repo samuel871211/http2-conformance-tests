@@ -890,15 +890,6 @@ function writeAsync(
   return new Promise((resolve) => writable.write(buffer, resolve));
 }
 
-/**
- * @deprecated use {@link readHttp2Frame} instead
- */
-function onceData(socket: Socket | TLSSocket) {
-  return new Promise<Buffer<ArrayBuffer>>((resolve) =>
-    socket.once("data", resolve),
-  );
-}
-
 const Http2FrameTypes = {
   DATA: 0x00,
   HEADERS: 0x01,
@@ -1164,7 +1155,6 @@ export {
   sleep,
   writeAsync,
   getFileName,
-  onceData,
   readHttp2Frame,
   readHttp2FramesUntil,
   readUntilEndStream,

@@ -3,14 +3,15 @@ import net from "net";
 import assert from "assert";
 import { serverOption } from "../server-option.js";
 import {
+  getFileName,
   encodeIntegerRFC7541,
   encodeStringLiteralsRFC7541,
   getGoawayFrame,
   getHeadersFrame,
   http2ConnectionPreface,
   ERROR_CODES,
+  readHttp2Frame,
 } from "../utils.js";
-import { getFileName, onceData } from "../utils.js";
 
 const fileName = getFileName(import.meta.filename);
 const { host, port, enableNodejsHttp2Server } = serverOption;
@@ -31,7 +32,6 @@ const config = {
 if (enableNodejsHttp2Server) {
   const http2Server = http2.createServer();
   http2Server.listen(port);
-  http2Server.on("request", (req, res) => console.log(req.headers));
 }
 
 const socket = net.connect({
@@ -50,8 +50,8 @@ const headersFrame = getHeadersFrame({
     encodeIntegerRFC7541({ prefix: "0001", integer: 1 }),
     encodeStringLiteralsRFC7541({
       huffman: true,
-      string: "localhost:8080", // 76 bits of Huffman Code
-      customPaddingBits: "0000",
+      string: "localhost:8080", // 77 bits of Huffman Code
+      customPaddingBits: "000",
     }),
   ]),
 });
@@ -61,12 +61,12 @@ socket.setTimeout(5000, () => {
   console.log(`${fileName}: server does not close the TCP connection`);
   process.exit(1);
 });
-const maybeGoawayFrame = await onceData(socket);
+const maybeGoawayFrame = await readHttp2Frame(socket);
 const goawayFrame = getGoawayFrame({
   lastStreamID: 1,
   errorCode: ERROR_CODES.COMPRESSION_ERROR,
 });
-assert(maybeGoawayFrame.equals(goawayFrame));
+assert(maybeGoawayFrame.raw.equals(goawayFrame));
 socket.on("close", () => {
   console.log(`${fileName}: ok`);
   process.exit(0);
