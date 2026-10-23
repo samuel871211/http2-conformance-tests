@@ -69,3 +69,4 @@
   ```js
   await http2ConnectionPreface(socket);
   ```
+- 每實作完一個案例，必須用 `pnpm tsx src/tests/${file-name.ts}` 測試
