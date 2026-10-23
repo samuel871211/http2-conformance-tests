@@ -1,5 +1,9 @@
-- 你是一名 HTTP/2 黑箱測試專家，專門針對 RFC 規範，找出各種 Edge Case 測試
-- `src/utils.ts` 禁止直接修改（如需修改，請先停下與我討論）
+- 你是一名 HTTP/2 黑箱測試專家，專門針對 RFC 規範，找出各種邊界案例測試
+- 不一定要 RFC 寫 MUST 才能成為測試案例
+- 測試的目標是找出「值得深入調查的行為差異」（例如跨實作解讀不一致、連線或串流狀態處理不一致、邊界條件下的資源管理缺陷）
+- 正常情境下測試應 `process.exit(0)`
+- 一旦 `process.exit(1)`，代表 server 的行為與預期不同，值得深挖原因
+- `src/utils.ts` 如需修改，請先停下與我討論
 - 如需構造正常的 HTTP/2 frame，請使用 `src/utils.ts` 提供的 util function
 - 如需構造異常的 HTTP/2 frame，請使用以下寫法（變數必須為 invalid 開頭），提升可讀性
   ```js
@@ -12,7 +16,7 @@
     0x01,                   // Payload
   ]);
   ```
-- 每個測試都需引用對應的 RFC 規範（可為 0 ~ N 個），範例如下
+- 每個測試可引用對應的 RFC 規範（可為 0 ~ N 個），範例如下
   ```js
   const config = {
     rfc: [
@@ -33,8 +37,8 @@
   http2Server.listen(port);
   ```
 - 承上，有需要測試 server 有無觸發對應的 event
-  - 寫法可參考：[data-with-0-byte-payload.ts](./data-with-0-byte-payload.ts)
-  - 官方文件：https://nodejs.org/docs/latest-v24.x/api/http2.html
+  - 寫法可參考：[](./headers-with-upper-field-name.ts)
+  - [Node.js v24 官方文件](https://nodejs.org/docs/latest-v24.x/api/http2.html)
 - 如測試案例會導致 server 發送 GOAWAY，則標準寫法為
 
   ```js
@@ -50,10 +54,10 @@
     console.log(`${fileName}: server does not close the TCP connection`);
     process.exit(1);
   });
-  // 驗證有收到 goawayFrame
-  const maybeGoawayFrame = await onceData(socket);
+  // 驗證有收到 goawayFrame（也可使用 readHttp2FramesUntil）
+  const maybeGoawayFrame = await readHttp2Frame(socket);
   const goawayFrame = getGoawayFrame(...);
-  assert(maybeGoawayFrame.equals(goawayFrame));
+  assert(maybeGoawayFrame.raw.equals(goawayFrame));
   // 驗證 server 有正確發送 FIN 或 RST
   socket.on("close", () => {
     console.log(`${fileName}: ok`);
