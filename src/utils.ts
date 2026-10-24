@@ -560,6 +560,30 @@ function getSettingsFrame(params: {
   ]);
 }
 
+function getPriorityFrame(params: {
+  streamID: number;
+  exclusive: 0 | 1;
+  streamDependency: number;
+  weight: number;
+}) {
+  const { streamID, exclusive, streamDependency, weight } = params;
+  const streamIDBuffer = numberTo4BytesBuffer(streamID);
+  const streamDependencyBuffer = numberTo4BytesBuffer(
+    ((exclusive << 31) | streamDependency) >>> 0,
+  );
+  const weightBuffer = numberTo1ByteBuffer(weight);
+  return Buffer.from([
+    0x00,
+    0x00,
+    0x05, // Length
+    0x02, // Type
+    0x00, // Flags
+    ...streamIDBuffer, // Reserved + Stream Identifier
+    ...streamDependencyBuffer, // Exclusive + Stream Dependency
+    ...weightBuffer, // Weight
+  ]);
+}
+
 function getHeadersFrame(params: {
   streamID: number;
   /**
@@ -1147,6 +1171,7 @@ export {
   getRSTFrame,
   ERROR_CODES,
   getGoawayFrame,
+  getPriorityFrame,
   getDataFrame,
   getSettingsFrame,
   getHeadersFrame,
