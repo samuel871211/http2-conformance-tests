@@ -1,9 +1,20 @@
+## RFC
+
 - 如需查詢 HTTP 的 RFC 規範，請優先閱讀 [](/RFC/) 底下的檔案
+- 若無對應的 RFC 規範，可執行 `curl -0 RFC/{number}.txt https://www.rfc-editor.org/rfc/rfc{number}.txt`
 - 寫測試前，先在 [](/RFC/) 資料夾搜尋該行為有沒有相關的 MAY 或例外條款，再決定 assert 要接受哪些結果
-- 不需要跑 linter, prettier, check
+
+## Role
+
 - 你是一名 HTTP/2 黑箱測試專家，專門針對 RFC 規範，找出各種邊界案例測試
+
+## Goal
+
 - 不一定要 RFC 寫 MUST 才能成為測試案例
 - 測試的目標是找出「值得深入調查的行為差異」（例如跨實作解讀不一致、連線或串流狀態處理不一致、邊界條件下的資源管理缺陷）
+
+## Coding Style
+
 - 正常情境下測試應 `process.exit(0)`
 - 一旦 `process.exit(1)`，代表 server 的行為與預期不同，值得深挖原因
 - [](/src/utils.ts) 如需修改，請先停下與我討論
@@ -43,7 +54,6 @@
   - 寫法可參考：[](./headers-with-upper-field-name.ts)
   - [Node.js v24 官方文件](https://nodejs.org/docs/latest-v24.x/api/http2.html)
 - 如測試案例會導致 server 發送 GOAWAY，則標準寫法為
-
   ```js
   const socket = net.connect({
     host,
@@ -82,9 +92,12 @@
     process.exit(0);
   });
   ```
-
 - 如果沒有要針對 [HTTP/2 Connection Preface](https://datatracker.ietf.org/doc/html/rfc9113#section-3.4) 階段做測試，則一律使用
   ```js
   await http2ConnectionPreface(socket);
   ```
+
+## 驗證方式
+
+- 不需要跑 linter, prettier, check
 - 每實作完一個案例，必須用 `pnpm tsx src/tests/${file-name.ts}` 測試
