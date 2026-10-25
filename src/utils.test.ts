@@ -4,8 +4,13 @@ import net from "node:net";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   emptySettingsFrame,
+  getContinuationFrame,
   getDataFrame,
   getGoawayFrame,
+  getHeadersFrame,
+  getPriorityFrame,
+  getPushPromiseFrame,
+  Http2FrameTypes,
   pingFrame,
   readHttp2Frame,
   settingsACKFrame,
@@ -439,5 +444,380 @@ describe("readHttp2Frame", () => {
       await assert.rejects(readHttp2Frame(socket));
       assert.deepEqual(listenerCounts(socket), before);
     });
+  });
+});
+
+/**
+ * 預期值一律手寫 hex（空白會被忽略），不依賴 util 本身的實作
+ */
+function hex(bytes: string) {
+  return Buffer.from(bytes.replace(/\s/g, ""), "hex");
+}
+
+describe("getHeadersFrame", () => {
+  it("最小的 HEADERS frame", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x05,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000001 01 05 00000001 82"));
+  });
+
+  it("field block 為空", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x04,
+      fieldBlockFragment: Buffer.alloc(0),
+    });
+    assert.deepEqual(frame, hex("000000 01 04 00000001"));
+  });
+
+  it("flags 與 streamID 原樣寫入", () => {
+    const frame = getHeadersFrame({
+      streamID: 0x7fffffff,
+      flags: 0xff,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000001 01 ff 7fffffff 82"));
+  });
+
+  it("streamID 的 Reserved bit 會保留", () => {
+    const frame = getHeadersFrame({
+      streamID: 0x80000001,
+      flags: 0x05,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000001 01 05 80000001 82"));
+  });
+
+  it("padLength 3：Pad Length + padding 都算進 Length", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x0c,
+      fieldBlockFragment: hex("82"),
+      padLength: 3,
+    });
+    assert.deepEqual(frame, hex("000005 01 0c 00000001 03 82 000000"));
+  });
+
+  it("paddingFill 決定 padding 的內容", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x0c,
+      fieldBlockFragment: hex("82"),
+      padLength: 2,
+      paddingFill: 0xab,
+    });
+    assert.deepEqual(frame, hex("000004 01 0c 00000001 02 82 abab"));
+  });
+
+  it("padLength 0：只多 1 byte 的 Pad Length", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x0c,
+      fieldBlockFragment: hex("82"),
+      padLength: 0,
+    });
+    assert.deepEqual(frame, hex("000002 01 0c 00000001 00 82"));
+  });
+
+  it("padLength 255：Length 為 1 + field block + 255", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x0c,
+      fieldBlockFragment: hex("82"),
+      padLength: 255,
+    });
+    assert.equal(frame.readUIntBE(0, 3), 1 + 1 + 255);
+    assert.equal(frame[9], 255);
+    assert.equal(frame.byteLength, 9 + 1 + 1 + 255);
+  });
+
+  it("padLength 不會自動設定 PADDED flag（黑箱測試需要造出不一致的 frame）", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x04,
+      fieldBlockFragment: hex("82"),
+      padLength: 1,
+    });
+    assert.deepEqual(frame, hex("000003 01 04 00000001 01 82 00"));
+  });
+
+  it("padLength 超過 255 會 throw", () => {
+    assert.throws(
+      () =>
+        getHeadersFrame({
+          streamID: 1,
+          flags: 0x0c,
+          fieldBlockFragment: hex("82"),
+          padLength: 256,
+        }),
+      RangeError,
+    );
+  });
+
+  it("大 field block（16385 bytes）：Length 為 0x004001", () => {
+    const frame = getHeadersFrame({
+      streamID: 1,
+      flags: 0x04,
+      fieldBlockFragment: Buffer.alloc(16385, 0x82),
+    });
+    assert.deepEqual(frame.subarray(0, 9), hex("004001 01 04 00000001"));
+    assert.equal(frame.byteLength, 9 + 16385);
+  });
+
+  it("能被 readHttp2Frame 讀回", TEST_TIMEOUT, async () => {
+    const frame = getHeadersFrame({
+      streamID: 5,
+      flags: 0x0c,
+      fieldBlockFragment: hex("8284"),
+      padLength: 2,
+    });
+    const socket = await connect((s) => s.write(frame));
+    const [parsed] = await readFrames(socket, 1);
+    assert.equal(parsed!.type, Http2FrameTypes.HEADERS);
+    assert.equal(parsed!.flags, 0x0c);
+    assert.equal(parsed!.streamID, 5);
+    assert.deepEqual(parsed!.payload, hex("02 8284 0000"));
+    assert.deepEqual(parsed!.raw, frame);
+  });
+});
+
+describe("getPriorityFrame", () => {
+  it("Length 固定為 5，Type 為 0x02，Flags 為 0", () => {
+    const frame = getPriorityFrame({
+      streamID: 3,
+      exclusive: 0,
+      streamDependency: 1,
+      weight: 15,
+    });
+    assert.deepEqual(frame, hex("000005 02 00 00000003 00000001 0f"));
+  });
+
+  it("exclusive 1：Stream Dependency 的最高位元為 1", () => {
+    const frame = getPriorityFrame({
+      streamID: 3,
+      exclusive: 1,
+      streamDependency: 1,
+      weight: 15,
+    });
+    assert.deepEqual(frame, hex("000005 02 00 00000003 80000001 0f"));
+  });
+
+  it("exclusive 1 + Stream Dependency 最大值", () => {
+    const frame = getPriorityFrame({
+      streamID: 3,
+      exclusive: 1,
+      streamDependency: 0x7fffffff,
+      weight: 0,
+    });
+    assert.deepEqual(frame, hex("000005 02 00 00000003 ffffffff 00"));
+  });
+
+  it("exclusive 0 + Stream Dependency 最大值：最高位元維持 0", () => {
+    const frame = getPriorityFrame({
+      streamID: 3,
+      exclusive: 0,
+      streamDependency: 0x7fffffff,
+      weight: 0,
+    });
+    assert.deepEqual(frame, hex("000005 02 00 00000003 7fffffff 00"));
+  });
+
+  it("weight 邊界值 0 與 255", () => {
+    const min = getPriorityFrame({
+      streamID: 1,
+      exclusive: 0,
+      streamDependency: 0,
+      weight: 0,
+    });
+    const max = getPriorityFrame({
+      streamID: 1,
+      exclusive: 0,
+      streamDependency: 0,
+      weight: 255,
+    });
+    assert.equal(min[13], 0x00);
+    assert.equal(max[13], 0xff);
+  });
+
+  it("weight 超過 255 會 throw", () => {
+    assert.throws(
+      () =>
+        getPriorityFrame({
+          streamID: 1,
+          exclusive: 0,
+          streamDependency: 0,
+          weight: 256,
+        }),
+      RangeError,
+    );
+  });
+
+  it("streamID 0 也能產生（用來測 server 的錯誤處理）", () => {
+    const frame = getPriorityFrame({
+      streamID: 0,
+      exclusive: 0,
+      streamDependency: 0,
+      weight: 15,
+    });
+    assert.deepEqual(frame, hex("000005 02 00 00000000 00000000 0f"));
+  });
+
+  it("能被 readHttp2Frame 讀回", TEST_TIMEOUT, async () => {
+    const frame = getPriorityFrame({
+      streamID: 7,
+      exclusive: 1,
+      streamDependency: 3,
+      weight: 200,
+    });
+    const socket = await connect((s) => s.write(frame));
+    const [parsed] = await readFrames(socket, 1);
+    assert.equal(parsed!.type, Http2FrameTypes.PRIORITY);
+    assert.equal(parsed!.length, 5);
+    assert.equal(parsed!.streamID, 7);
+    assert.deepEqual(parsed!.payload, hex("80000003 c8"));
+  });
+});
+
+describe("getContinuationFrame", () => {
+  it("最小的 CONTINUATION frame", () => {
+    const frame = getContinuationFrame({
+      streamID: 1,
+      flags: 0x04,
+      fieldBlockFragment: hex("8284"),
+    });
+    assert.deepEqual(frame, hex("000002 09 04 00000001 8284"));
+  });
+
+  it("field block 為空", () => {
+    const frame = getContinuationFrame({
+      streamID: 1,
+      flags: 0x04,
+      fieldBlockFragment: Buffer.alloc(0),
+    });
+    assert.deepEqual(frame, hex("000000 09 04 00000001"));
+  });
+
+  it("沒有 END_HEADERS（flags 0）", () => {
+    const frame = getContinuationFrame({
+      streamID: 1,
+      flags: 0x00,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000001 09 00 00000001 82"));
+  });
+
+  it("flags 與 streamID 原樣寫入", () => {
+    const frame = getContinuationFrame({
+      streamID: 0x80000003,
+      flags: 0xff,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000001 09 ff 80000003 82"));
+  });
+
+  it("沒有 Pad Length 與 padding（CONTINUATION 不支援 PADDED）", () => {
+    const frame = getContinuationFrame({
+      streamID: 1,
+      flags: 0x08,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.equal(frame.readUIntBE(0, 3), 1);
+    assert.equal(frame.byteLength, 9 + 1);
+  });
+
+  it("大 field block（16385 bytes）：Length 為 0x004001", () => {
+    const frame = getContinuationFrame({
+      streamID: 1,
+      flags: 0x04,
+      fieldBlockFragment: Buffer.alloc(16385, 0x82),
+    });
+    assert.deepEqual(frame.subarray(0, 9), hex("004001 09 04 00000001"));
+    assert.equal(frame.byteLength, 9 + 16385);
+  });
+
+  it("能被 readHttp2Frame 讀回", TEST_TIMEOUT, async () => {
+    const frame = getContinuationFrame({
+      streamID: 5,
+      flags: 0x04,
+      fieldBlockFragment: hex("8284"),
+    });
+    const socket = await connect((s) => s.write(frame));
+    const [parsed] = await readFrames(socket, 1);
+    assert.equal(parsed!.type, Http2FrameTypes.CONTINUATION);
+    assert.equal(parsed!.flags, 0x04);
+    assert.equal(parsed!.streamID, 5);
+    assert.deepEqual(parsed!.payload, hex("8284"));
+  });
+});
+
+describe("getPushPromiseFrame", () => {
+  it("最小的 PUSH_PROMISE frame", () => {
+    const frame = getPushPromiseFrame({
+      streamID: 1,
+      flags: 0x04,
+      promisedStreamID: 2,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000005 05 04 00000001 00000002 82"));
+  });
+
+  it("field block 為空：Length 只有 Promised Stream ID 的 4 bytes", () => {
+    const frame = getPushPromiseFrame({
+      streamID: 1,
+      flags: 0x04,
+      promisedStreamID: 2,
+      fieldBlockFragment: Buffer.alloc(0),
+    });
+    assert.deepEqual(frame, hex("000004 05 04 00000001 00000002"));
+  });
+
+  it("padLength 2：Pad Length 在 Promised Stream ID 前面，padding 在最後", () => {
+    const frame = getPushPromiseFrame({
+      streamID: 1,
+      flags: 0x0c,
+      promisedStreamID: 2,
+      fieldBlockFragment: hex("82"),
+      padLength: 2,
+      paddingFill: 0xab,
+    });
+    assert.deepEqual(frame, hex("000008 05 0c 00000001 02 00000002 82 abab"));
+  });
+
+  it("padLength 0：只多 1 byte 的 Pad Length", () => {
+    const frame = getPushPromiseFrame({
+      streamID: 1,
+      flags: 0x0c,
+      promisedStreamID: 2,
+      fieldBlockFragment: hex("82"),
+      padLength: 0,
+    });
+    assert.deepEqual(frame, hex("000006 05 0c 00000001 00 00000002 82"));
+  });
+
+  it("streamID 與 promisedStreamID 的 Reserved bit 都會保留", () => {
+    const frame = getPushPromiseFrame({
+      streamID: 0x80000001,
+      flags: 0x04,
+      promisedStreamID: 0x80000002,
+      fieldBlockFragment: hex("82"),
+    });
+    assert.deepEqual(frame, hex("000005 05 04 80000001 80000002 82"));
+  });
+
+  it("能被 readHttp2Frame 讀回", TEST_TIMEOUT, async () => {
+    const frame = getPushPromiseFrame({
+      streamID: 1,
+      flags: 0x04,
+      promisedStreamID: 2,
+      fieldBlockFragment: hex("8284"),
+    });
+    const socket = await connect((s) => s.write(frame));
+    const [parsed] = await readFrames(socket, 1);
+    assert.equal(parsed!.type, Http2FrameTypes.PUSH_PROMISE);
+    assert.equal(parsed!.streamID, 1);
+    assert.deepEqual(parsed!.payload, hex("00000002 8284"));
   });
 });

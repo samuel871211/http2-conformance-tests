@@ -3,6 +3,7 @@ import net from "net";
 import {
   encodeIntegerRFC7541,
   encodeStringLiteralsRFC7541,
+  getContinuationFrame,
   getHeadersFrame,
   http2ConnectionPreface,
 } from "../utils.js";
@@ -48,10 +49,9 @@ const emptyHeadersFrameWithEndStreamFlag = getHeadersFrame({
   fieldBlockFragment: Buffer.alloc(0),
 });
 await writeAsync(socket, emptyHeadersFrameWithEndStreamFlag);
-const headersFrame = getHeadersFrame({
+const continuationFrame = getContinuationFrame({
   streamID: 1,
   flags: 4,
-  isContinuationFrame: true,
   fieldBlockFragment: Buffer.concat([
     encodeIntegerRFC7541({ prefix: "1", integer: 2 }),
     encodeIntegerRFC7541({ prefix: "1", integer: 4 }),
@@ -60,4 +60,4 @@ const headersFrame = getHeadersFrame({
     encodeStringLiteralsRFC7541({ string: `${host}:${port}` }),
   ]),
 });
-socket.write(headersFrame);
+socket.write(continuationFrame);

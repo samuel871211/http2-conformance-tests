@@ -4,6 +4,7 @@ import { serverOption } from "../server-option.js";
 import {
   encodeIntegerRFC7541,
   encodeStringLiteralsRFC7541,
+  getContinuationFrame,
   getGoawayFrame,
   getHeadersFrame,
   http2ConnectionPreface,
@@ -62,20 +63,26 @@ let index = 0;
 for (const byte of fieldBlockFragment) {
   const isLastByte = index === fieldBlockFragment.byteLength - 1;
   const isContinuationFrame = index !== 0;
-  const headersFrame = getHeadersFrame({
-    streamID: 1,
-    flags: (() => {
-      if (isLastByte) {
-        if (isContinuationFrame) return 4;
-        return 5;
-      }
-      if (isContinuationFrame) return 0;
-      return 1;
-    })(),
-    isContinuationFrame,
-    fieldBlockFragment: Buffer.from([byte]),
-  });
-  if (socket.writable) socket.write(headersFrame);
+  const flags = (() => {
+    if (isLastByte) {
+      if (isContinuationFrame) return 4;
+      return 5;
+    }
+    if (isContinuationFrame) return 0;
+    return 1;
+  })();
+  const frame = isContinuationFrame
+    ? getContinuationFrame({
+        streamID: 1,
+        flags,
+        fieldBlockFragment: Buffer.from([byte]),
+      })
+    : getHeadersFrame({
+        streamID: 1,
+        flags,
+        fieldBlockFragment: Buffer.from([byte]),
+      });
+  if (socket.writable) socket.write(frame);
   else console.log("not writable");
   index++;
 }

@@ -1,6 +1,7 @@
 import http2 from "http2";
 import net from "net";
 import {
+  getContinuationFrame,
   getHeadersFrame,
   http2ConnectionPreface,
   getGoawayFrame,
@@ -44,9 +45,8 @@ const headersFrame = getHeadersFrame({
   fieldBlockFragment: Buffer.alloc(0),
 });
 await writeAsync(socket, headersFrame);
-const continuationFrame = getHeadersFrame({
+const continuationFrame = getContinuationFrame({
   streamID: 3,
-  isContinuationFrame: true,
   flags: 4,
   fieldBlockFragment: Buffer.alloc(0),
 });

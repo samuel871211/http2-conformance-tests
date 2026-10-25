@@ -349,18 +349,37 @@ const HUFFMAN_CODE = [
   "111111111111111111111111111111", // 256 EOS
 ];
 
+/**
+ * https://datatracker.ietf.org/doc/html/rfc9113#name-frame-definitions
+ */
+const Http2FrameTypes = {
+  DATA: 0x00,
+  HEADERS: 0x01,
+  PRIORITY: 0x02,
+  RST_STREAM: 0x03,
+  SETTINGS: 0x04,
+  PUSH_PROMISE: 0x05,
+  PING: 0x06,
+  GOAWAY: 0x07,
+  WINDOW_UPDATE: 0x08,
+  CONTINUATION: 0x09,
+  PRIORITY_UPDATE: 0x10,
+  ALTSVC: 0x0a,
+  ORIGIN: 0x0c,
+} as const;
+
 const magic = Buffer.from("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", "latin1");
 // prettier-ignore
 const emptySettingsFrame = Buffer.from([
-  0x00, 0x00, 0x00,       // Length
-  0x04,                   // Type
-  0x00,                   // Flags
-  0x00, 0x00, 0x00, 0x00, // Reserved + Stream Identifier
+  0x00, 0x00, 0x00,         // Length
+  Http2FrameTypes.SETTINGS, // Type
+  0x00,                     // Flags
+  0x00, 0x00, 0x00, 0x00,   // Reserved + Stream Identifier
 ]);
 // prettier-ignore
 const pingFrame = Buffer.from([
   0x00, 0x00, 0x08,       // Length
-  0x06,                   // Type
+  Http2FrameTypes.PING,   // Type
   0x00,                   // Flags
   0x00, 0x00, 0x00, 0x00, // Reserved + Stream Identifier
   0x00, 0x00, 0x00, 0x00,
@@ -368,10 +387,10 @@ const pingFrame = Buffer.from([
 ]);
 // prettier-ignore
 const settingsACKFrame = Buffer.from([
-  0x00, 0x00, 0x00,       // Length
-  0x04,                   // Type
-  0x01,                   // Flags
-  0x00, 0x00, 0x00, 0x00, // Reserved + Stream Identifier
+  0x00, 0x00, 0x00,         // Length
+  Http2FrameTypes.SETTINGS, // Type
+  0x01,                     // Flags
+  0x00, 0x00, 0x00, 0x00,   // Reserved + Stream Identifier
 ]);
 
 // function numberToNBytesBuffer(params: { num: number, n: number }) {
@@ -465,25 +484,28 @@ function getDataFrame(params: {
    */
   paddingFill?: Parameters<Buffer["fill"]>[0];
 }) {
-  const { streamID, flags, data, paddingFill } = params;
+  const { streamID, flags, data, padLength, paddingFill } = params;
   const streamIDBuffer = numberTo4BytesBuffer(streamID);
-  const padLength =
-    typeof params.padLength === "number"
-      ? numberTo1ByteBuffer(params.padLength)
-      : Buffer.alloc(0);
-  const padding = Buffer.alloc(params.padLength || 0, paddingFill);
-  const payloadLength = numberTo3BytesBuffer(
-    data.byteLength + Buffer.byteLength(padLength) + Buffer.byteLength(padding),
+  const padLengthBuffer = (() => {
+    if (typeof padLength !== "number") return Buffer.alloc(0);
+    return numberTo1ByteBuffer(padLength);
+  })();
+  const paddingBuffer = Buffer.alloc(padLength || 0, paddingFill);
+  // prettier-ignore
+  const payloadLengthBuffer = numberTo3BytesBuffer(
+    data.byteLength +
+    padLengthBuffer.byteLength +
+    paddingBuffer.byteLength,
   );
   // prettier-ignore
   return Buffer.from([
-    ...payloadLength,  // Length
-    0x00,              // Type
-    flags,             // Flags
-    ...streamIDBuffer, // Reserved + Stream Identifier
-    ...padLength,      // Pad Length
-    ...data,           // Payload
-    ...padding,        // Padding
+    ...payloadLengthBuffer, // Length
+    Http2FrameTypes.DATA,   // Type
+    flags,                  // Flags
+    ...streamIDBuffer,      // Reserved + Stream Identifier
+    ...padLengthBuffer,     // Pad Length
+    ...data,                // Payload
+    ...paddingBuffer,       // Padding
   ]);
 }
 
@@ -505,7 +527,7 @@ function getSettingsFrame(params: {
   } = params;
 
   // prettier-ignore
-  const payload = Buffer.concat([
+  const payloadBuffer = Buffer.concat([
     typeof SETTINGS_HEADER_TABLE_SIZE === "number"
       ? Buffer.from([
           0x00,
@@ -549,14 +571,14 @@ function getSettingsFrame(params: {
         ])
       : Buffer.alloc(0),
   ]);
-  const length = numberTo3BytesBuffer(payload.length);
+  const payloadLengthBuffer = numberTo3BytesBuffer(payloadBuffer.byteLength);
   // prettier-ignore
   return Buffer.from([
-    ...length,              // Length
-    0x04,                   // Type
-    0x00,                   // Flags
-    0x00, 0x00, 0x00, 0x00, // Reserved + Stream Identifier
-    ...payload
+    ...payloadLengthBuffer,   // Length
+    Http2FrameTypes.SETTINGS, // Type
+    0x00,                     // Flags
+    0x00, 0x00, 0x00, 0x00,   // Reserved + Stream Identifier
+    ...payloadBuffer,         // Payload
   ]);
 }
 
@@ -572,15 +594,14 @@ function getPriorityFrame(params: {
     ((exclusive << 31) | streamDependency) >>> 0,
   );
   const weightBuffer = numberTo1ByteBuffer(weight);
+  // prettier-ignore
   return Buffer.from([
-    0x00,
-    0x00,
-    0x05, // Length
-    0x02, // Type
-    0x00, // Flags
-    ...streamIDBuffer, // Reserved + Stream Identifier
+    0x00, 0x00, 0x05,          // Length
+    Http2FrameTypes.PRIORITY,  // Type
+    0x00,                      // Flags
+    ...streamIDBuffer,         // Reserved + Stream Identifier
     ...streamDependencyBuffer, // Exclusive + Stream Dependency
-    ...weightBuffer, // Weight
+    ...weightBuffer,           // Weight
   ]);
 }
 
@@ -604,7 +625,6 @@ function getHeadersFrame(params: {
    * END_STREAM Flag 1
    */
   flags: number;
-  isContinuationFrame?: boolean;
   fieldBlockFragment: Buffer;
   /**
    * 0 ~ 255
@@ -615,33 +635,120 @@ function getHeadersFrame(params: {
    */
   paddingFill?: Parameters<Buffer["fill"]>[0];
 }) {
+  // prettier-ignore
   const {
     streamID,
     flags,
-    isContinuationFrame,
     fieldBlockFragment,
-    paddingFill,
+    padLength,
+    paddingFill
   } = params;
-  const type = isContinuationFrame ? 0x09 : 0x01;
-  const output_length = fieldBlockFragment.byteLength;
   const streamIDBuffer = numberTo4BytesBuffer(streamID);
-  const padLength =
-    typeof params.padLength === "number"
-      ? numberTo1ByteBuffer(params.padLength)
-      : Buffer.alloc(0);
-  const padding = Buffer.alloc(params.padLength || 0, paddingFill);
-  const payloadLength = numberTo3BytesBuffer(
-    output_length + Buffer.byteLength(padLength) + Buffer.byteLength(padding),
+  const padLengthBuffer = (() => {
+    if (typeof padLength !== "number") return Buffer.alloc(0);
+    return numberTo1ByteBuffer(padLength);
+  })();
+  const paddingBuffer = Buffer.alloc(padLength || 0, paddingFill);
+  // prettier-ignore
+  const payloadLengthBuffer = numberTo3BytesBuffer(
+    fieldBlockFragment.byteLength +
+    padLengthBuffer.byteLength +
+    paddingBuffer.byteLength,
   );
   // prettier-ignore
   return Buffer.from([
-    ...payloadLength,      // Length
-    type,                  // Type
-    flags,                 // Flags
-    ...streamIDBuffer,     // Reserved + Stream Identifier
-    ...padLength,          // Pad Length
-    ...fieldBlockFragment, // Payload
-    ...padding,            // Padding
+    ...payloadLengthBuffer,  // Length
+    Http2FrameTypes.HEADERS, // Type
+    flags,                   // Flags
+    ...streamIDBuffer,       // Reserved + Stream Identifier
+    ...padLengthBuffer,      // Pad Length
+    ...fieldBlockFragment,   // Payload
+    ...paddingBuffer,        // Padding
+  ]);
+}
+
+function getContinuationFrame(params: {
+  streamID: number;
+  /**
+   * https://datatracker.ietf.org/doc/html/rfc9113#name-continuation
+   *
+   * END_HEADERS Flag 4
+   */
+  flags: number;
+  fieldBlockFragment: Buffer;
+}) {
+  const { streamID, flags, fieldBlockFragment } = params;
+  const streamIDBuffer = numberTo4BytesBuffer(streamID);
+  const payloadLengthBuffer = numberTo3BytesBuffer(
+    fieldBlockFragment.byteLength,
+  );
+  // prettier-ignore
+  return Buffer.from([
+    ...payloadLengthBuffer,       // Length
+    Http2FrameTypes.CONTINUATION, // Type
+    flags,                        // Flags
+    ...streamIDBuffer,            // Reserved + Stream Identifier
+    ...fieldBlockFragment,        // Payload
+  ]);
+}
+
+function getPushPromiseFrame(params: {
+  /**
+   * 關聯的 stream，不是被 promise 的 stream
+   */
+  streamID: number;
+  /**
+   * https://datatracker.ietf.org/doc/html/rfc9113#name-push_promise
+   *
+   * PADDED Flag 8
+   *
+   * END_HEADERS Flag 4
+   */
+  flags: number;
+  promisedStreamID: number;
+  fieldBlockFragment: Buffer;
+  /**
+   * 0 ~ 255
+   */
+  padLength?: number;
+  /**
+   * 非 RFC 9113 設定，這是黑箱測試才會用到的
+   */
+  paddingFill?: Parameters<Buffer["fill"]>[0];
+}) {
+  // prettier-ignore
+  const {
+    streamID,
+    flags,
+    promisedStreamID,
+    fieldBlockFragment,
+    padLength,
+    paddingFill
+  } = params;
+  const streamIDBuffer = numberTo4BytesBuffer(streamID);
+  const promisedStreamIDBuffer = numberTo4BytesBuffer(promisedStreamID);
+  const padLengthBuffer = (() => {
+    if (typeof padLength !== "number") return Buffer.alloc(0);
+    return numberTo1ByteBuffer(padLength);
+  })();
+  const paddingBuffer = Buffer.alloc(padLength || 0, paddingFill);
+  // prettier-ignore
+  const payloadLengthBuffer = numberTo3BytesBuffer(
+    padLengthBuffer.byteLength +
+    promisedStreamIDBuffer.byteLength +
+    fieldBlockFragment.byteLength +
+    paddingBuffer.byteLength,
+  );
+  // prettier-ignore
+  return Buffer.from([
+    ...payloadLengthBuffer,       // Length
+    Http2FrameTypes.PUSH_PROMISE, // Type
+    flags,                        // Flags
+    ...streamIDBuffer,            // Reserved + Stream Identifier
+    ...padLengthBuffer,           // Pad Length
+    ...promisedStreamIDBuffer,    // Reserved + Promised Stream ID
+    ...fieldBlockFragment,        // Field Block Fragment
+    ...paddingBuffer,             // Padding
   ]);
 }
 
@@ -660,35 +767,18 @@ function getGoawayFrame(params: {
   } = params;
   const lastStreamIDBuffer = numberTo4BytesBuffer(lastStreamID);
   const errorCodeBuffer = numberTo4BytesBuffer(errorCode);
-  const frameLength = numberTo3BytesBuffer(
+  const payloadLengthBuffer = numberTo3BytesBuffer(
     4 + 4 + additionalDebugData.byteLength,
   );
   // prettier-ignore
   return Buffer.from([
-    ...frameLength,         // Length
-    0x07,                   // Type
+    ...payloadLengthBuffer, // Length
+    Http2FrameTypes.GOAWAY, // Type
     0x00,                   // Flags
     0x00, 0x00, 0x00, 0x00, // Reserved + Stream Identifier
     ...lastStreamIDBuffer,  // Reserved + Last-Stream-ID
     ...errorCodeBuffer,     // Error Code
     ...additionalDebugData, // Additional Debug Data
-  ]);
-}
-
-function getCustomPayloadRSTFrame(params: {
-  streamID: number;
-  payload?: Buffer;
-}) {
-  const payload = params.payload || Buffer.alloc(0);
-  const byteLength = numberTo3BytesBuffer(payload.byteLength || 0);
-  const streamIDBuffer = numberTo4BytesBuffer(params.streamID);
-  // prettier-ignore
-  return Buffer.from([
-    ...byteLength,     // Length
-    0x03,              // Type
-    0x00,              // Flags
-    ...streamIDBuffer, // Reserved + Stream Identifier
-    ...payload,        // Payload
   ]);
 }
 
@@ -699,15 +789,16 @@ function getRSTFrame(params: {
    */
   errorCode: number;
 }) {
-  const streamIDBuffer = numberTo4BytesBuffer(params.streamID);
-  const errorCodeBuffer = numberTo4BytesBuffer(params.errorCode);
+  const { streamID, errorCode } = params;
+  const streamIDBuffer = numberTo4BytesBuffer(streamID);
+  const errorCodeBuffer = numberTo4BytesBuffer(errorCode);
   // prettier-ignore
   return Buffer.from([
-    0x00, 0x00, 0x04,   // Length
-    0x03,               // Type
-    0x00,               // Flags
-    ...streamIDBuffer,  // Reserved + Stream Identifier
-    ...errorCodeBuffer, // Error Code
+    0x00, 0x00, 0x04,           // Length
+    Http2FrameTypes.RST_STREAM, // Type
+    0x00,                       // Flags
+    ...streamIDBuffer,          // Reserved + Stream Identifier
+    ...errorCodeBuffer,         // Error Code
   ]);
 }
 
@@ -720,11 +811,11 @@ function getWindowUpdateFrame(params: {
   const windowSizeIncrementBuffer = numberTo4BytesBuffer(windowSizeIncrement);
   // prettier-ignore
   return Buffer.from([
-    0x00, 0x00, 0x04,             // Length
-    0x08,                         // Type
-    0x00,                         // Flags
-    ...streamIDBuffer,            // Reserved + Stream Identifier
-    ...windowSizeIncrementBuffer, // Window Size Increment
+    0x00, 0x00, 0x04,              // Length
+    Http2FrameTypes.WINDOW_UPDATE, // Type
+    0x00,                          // Flags
+    ...streamIDBuffer,             // Reserved + Stream Identifier
+    ...windowSizeIncrementBuffer,  // Window Size Increment
   ]);
 }
 
@@ -913,22 +1004,6 @@ function writeAsync(
 ) {
   return new Promise((resolve) => writable.write(buffer, resolve));
 }
-
-const Http2FrameTypes = {
-  DATA: 0x00,
-  HEADERS: 0x01,
-  PRIORITY: 0x02,
-  RST_STREAM: 0x03,
-  SETTINGS: 0x04,
-  PUSH_PROMISE: 0x05,
-  PING: 0x06,
-  GOAWAY: 0x07,
-  WINDOW_UPDATE: 0x08,
-  CONTINUATION: 0x09,
-  PRIORITY_UPDATE: 0x10,
-  ALTSVC: 0x0a,
-  ORIGIN: 0x0c,
-} as const;
 
 export type Http2Frame = {
   length: number;
@@ -1167,7 +1242,6 @@ export {
   numberTo1ByteBuffer,
   numberTo3BytesBuffer,
   numberTo4BytesBuffer,
-  getCustomPayloadRSTFrame,
   getRSTFrame,
   ERROR_CODES,
   getGoawayFrame,
@@ -1175,6 +1249,8 @@ export {
   getDataFrame,
   getSettingsFrame,
   getHeadersFrame,
+  getContinuationFrame,
+  getPushPromiseFrame,
   getWindowUpdateFrame,
   waitForSecureConnect,
   waitForLocalSettings,

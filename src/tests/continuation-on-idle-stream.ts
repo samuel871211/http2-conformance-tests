@@ -3,7 +3,7 @@ import net from "net";
 import assert from "assert";
 import { serverOption } from "../server-option.js";
 import {
-  getHeadersFrame,
+  getContinuationFrame,
   http2ConnectionPreface,
   readHttp2Frame,
   writeAsync,
@@ -41,10 +41,9 @@ const socket = net.connect({
 });
 await http2ConnectionPreface(socket);
 // stream 1 從未開啟過，前面也沒有 HEADERS frame
-const continuationFrame = getHeadersFrame({
+const continuationFrame = getContinuationFrame({
   streamID: 1,
   flags: 4,
-  isContinuationFrame: true,
   fieldBlockFragment: Buffer.alloc(0),
 });
 await writeAsync(socket, continuationFrame);
