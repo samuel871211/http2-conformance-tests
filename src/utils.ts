@@ -873,7 +873,9 @@ const LOW_7_BITS_MASK = 0b01111111;
 const CONTINUATION_FLAG = 0b10000000;
 function encodeIntegerRFC7541(params: {
   /**
-   * "1"    => Huffman encoded
+   * "0"    => Huffman encoded = false
+   *
+   * "1"    => Huffman encoded = true
    *
    * "1"    => Indexed Header Field Representation
    *
@@ -885,7 +887,7 @@ function encodeIntegerRFC7541(params: {
    *
    * "0001" => Literal Header Field Never Indexed
    */
-  prefix: "1" | "01" | "001" | "0000" | "0001";
+  prefix: "0" | "1" | "01" | "001" | "0000" | "0001";
   /**
    * @see {@link HPACK_STATIC_TABLE} when prefix = "1", "01", "0000", "0001"
    */
@@ -957,9 +959,11 @@ function encodeStringLiteralsRFC7541(params: {
   } = params;
   if (!huffman) {
     return Buffer.concat([
-      // FIXME: 字串 ≥ 128 bytes 會出錯
-      Buffer.from([Buffer.byteLength(string)]),
-      Buffer.from(string, "ascii"),
+      encodeIntegerRFC7541({
+        prefix: "0",
+        integer: Buffer.byteLength(string, "latin1"),
+      }),
+      Buffer.from(string, "latin1"),
     ]);
   }
 
@@ -986,8 +990,7 @@ function encodeStringLiteralsRFC7541(params: {
   return Buffer.concat([
     encodeIntegerRFC7541({
       prefix: "1",
-      integer:
-        Buffer.byteLength(stringBytes) + Buffer.byteLength(additionalBytes),
+      integer: stringBytes.byteLength + additionalBytes.byteLength,
     }),
     stringBytes,
     additionalBytes,
