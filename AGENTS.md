@@ -23,7 +23,7 @@
 
 - 正常情境下測試應 `process.exit(0)`
 - 一旦 `process.exit(1)`，代表 server 的行為與預期不同，值得深挖原因
-- [](/src/utils.ts) 如需修改，請先停下與我討論
+- 若 [](src/utils.ts) 缺少所需功能，先停止實作，回覆缺少的功能與具體修改方案（含替代方案），等我確認後再繼續
 - 如需構造正常的 HTTP/2 frame，請使用 [](/src/utils.ts) 提供的 util function
 - 如需構造異常的 HTTP/2 frame，請使用以下寫法（變數必須為 invalid 開頭），提升可讀性
   ```js
