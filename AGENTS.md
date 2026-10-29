@@ -14,6 +14,11 @@
 - 測試的目標是找出「值得深入調查的行為差異」（例如跨實作解讀不一致、連線或串流狀態處理不一致、邊界條件下的資源管理缺陷）
 - 如果輸入是異常或 RFC 沒有規定處理方式，server 送出 GOAWAY 並關閉 TCP connection，視為正常情境
 
+## 黑箱測試規範
+
+- 測試的 pass / fail 判定，必須只依據 socket 上收到的 HTTP/2 frame（黑箱）
+- `enableNodejsHttp2Server` 設為 `false` 時，測試仍要能對其他 HTTP/2 server 運作
+
 ## Coding Style
 
 - 正常情境下測試應 `process.exit(0)`
