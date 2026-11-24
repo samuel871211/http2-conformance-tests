@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      http-utils:
+        specifier: link:../http-utils
+        version: link:../http-utils
     devDependencies:
       '@types/node':
         specifier: ^24.19.1
