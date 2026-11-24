@@ -1,1 +1,1 @@
-export * from "http-utils/utils";
+export * from "http-utils/http2";
